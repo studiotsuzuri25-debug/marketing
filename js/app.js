@@ -119,7 +119,14 @@
         inner +=
           '<div class="field"><label>モデル名</label>' +
           '<input type="text" data-model-for="' + key + '" placeholder="' + p.defaultModel + '" value="' +
-          (state.settings.models[key] || p.defaultModel).replace(/"/g, '&quot;') + '"></div>';
+          (state.settings.models[key] || p.defaultModel).replace(/"/g, '&quot;') + '">' +
+          (p.modelOptions ?
+            '<div class="model-chips">' + p.modelOptions.map(function (m) {
+              return '<button type="button" class="model-chip" data-model-chip="' + key + '" data-model-id="' + m.id + '">' +
+                m.id + '<span class="chip-note">' + m.note + '</span></button>';
+            }).join('') + '</div>'
+            : '') +
+          '</div>';
       } else {
         inner += '<p class="hint">' + (p.note || '') + '</p>';
       }
@@ -132,6 +139,17 @@
       const selected = e.target.value;
       config.querySelectorAll('.provider-config-block').forEach(function (b) {
         b.hidden = b.dataset.provider !== selected;
+      });
+    });
+
+    // モデル候補チップ: タップでモデル名欄に反映
+    config.addEventListener('click', function (e) {
+      const chip = e.target.closest('[data-model-chip]');
+      if (!chip) return;
+      const input = config.querySelector('[data-model-for="' + chip.dataset.modelChip + '"]');
+      if (input) input.value = chip.dataset.modelId;
+      config.querySelectorAll('[data-model-chip="' + chip.dataset.modelChip + '"]').forEach(function (c) {
+        c.classList.toggle('active', c === chip);
       });
     });
 
