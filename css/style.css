@@ -29,6 +29,16 @@ body {
 button { font-family: inherit; }
 h1, h2, h3 { line-height: 1.35; }
 
+/* ================= Pictogram icons ================= */
+.icon { width: 1.1em; height: 1.1em; flex-shrink: 0; vertical-align: -0.18em; }
+[data-icon] { display: inline-flex; align-items: center; justify-content: center; }
+.btn-icon-text { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.btn-icon-text .icon { width: 1.05em; height: 1.05em; }
+.h-icon { display: flex; align-items: center; gap: 8px; }
+.h-icon .icon { color: var(--accent); }
+.phase-icon { width: 1.05em; height: 1.05em; color: var(--accent); }
+#run-phase { display: flex; align-items: center; gap: 9px; }
+
 /* ================= Header ================= */
 .app-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -38,7 +48,12 @@ h1, h2, h3 { line-height: 1.35; }
   position: sticky; top: 0; z-index: 20;
 }
 .brand { display: flex; align-items: center; gap: 12px; }
-.brand-icon { font-size: 30px; }
+.brand-icon {
+  width: 42px; height: 42px; border-radius: 12px; color: #fff;
+  background: linear-gradient(135deg, #4f8cff, #2a4fd0);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.brand-icon .icon { width: 24px; height: 24px; }
 .brand h1 { font-size: 18px; letter-spacing: 0.02em; }
 .brand p { font-size: 12px; color: var(--text-dim); }
 .header-actions { display: flex; align-items: center; gap: 12px; }
@@ -46,7 +61,9 @@ h1, h2, h3 { line-height: 1.35; }
   font-size: 12px; padding: 4px 12px; border-radius: 99px;
   background: var(--accent-soft); color: var(--accent);
   border: 1px solid rgba(79, 140, 255, 0.35);
+  display: inline-flex; align-items: center; gap: 6px;
 }
+.provider-badge .icon { width: 13px; height: 13px; }
 
 /* ================= Buttons ================= */
 .btn {
@@ -96,6 +113,8 @@ textarea:focus { outline: none; border-color: var(--accent); }
 }
 .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: var(--accent-soft); }
 .drop-zone .link { color: var(--accent); text-decoration: underline; }
+.drop-icon { color: var(--accent); }
+.drop-icon .icon { width: 20px; height: 20px; }
 .drop-hint { font-size: 11px; opacity: .75; }
 .source-list { list-style: none; margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .source-item {
@@ -103,7 +122,8 @@ textarea:focus { outline: none; border-color: var(--accent); }
   background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
   padding: 8px 12px; font-size: 13px;
 }
-.source-item .s-icon { font-size: 16px; }
+.source-item .s-icon { color: var(--accent); display: inline-flex; }
+.source-item .s-icon .icon { width: 16px; height: 16px; }
 .source-item .s-name {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -131,7 +151,8 @@ textarea:focus { outline: none; border-color: var(--accent); }
 .level-card input:checked + .level-body {
   border-color: var(--accent); background: var(--accent-soft);
 }
-.level-icon { font-size: 24px; }
+.level-icon { color: var(--accent); }
+.level-icon .icon { width: 24px; height: 24px; }
 .level-desc { font-size: 12px; color: var(--text-dim); flex: 1; }
 .level-meta { font-size: 11px; color: var(--accent); }
 
@@ -176,8 +197,9 @@ textarea:focus { outline: none; border-color: var(--accent); }
 }
 .agent-status {
   font-size: 11px; padding: 3px 10px; border-radius: 99px; border: 1px solid transparent;
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; gap: 5px;
 }
+.agent-status .icon { width: 11px; height: 11px; }
 .status-waiting { color: var(--text-dim); border-color: var(--border); }
 .status-running { color: var(--accent); border-color: rgba(79,140,255,.4); background: var(--accent-soft); }
 .status-done { color: var(--green); border-color: rgba(62,207,142,.4); background: rgba(62,207,142,.1); }
@@ -256,8 +278,9 @@ textarea:focus { outline: none; border-color: var(--accent); }
 }
 .modal-close {
   background: none; border: none; color: var(--text-dim); font-size: 18px; cursor: pointer;
-  padding: 4px 8px; border-radius: 8px;
+  padding: 6px; border-radius: 8px; display: inline-flex;
 }
+.modal-close .icon { width: 18px; height: 18px; }
 .modal-close:hover { background: var(--bg-card); color: var(--text); }
 .modal-body { padding: 20px 22px; overflow-y: auto; }
 .modal-body h3 { font-size: 14px; color: var(--text-dim); margin: 18px 0 10px; }
@@ -292,12 +315,39 @@ textarea:focus { outline: none; border-color: var(--accent); }
 .range-row { display: flex; align-items: center; gap: 14px; }
 .range-row input { flex: 1; accent-color: var(--accent); }
 .note { margin-top: 20px; }
+.check-row {
+  display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
+  font-size: 13.5px; line-height: 1.5;
+}
+.check-row input { accent-color: var(--accent); margin-top: 3px; }
+.check-icon { color: var(--accent); margin-top: 1px; }
+.check-icon .icon { width: 16px; height: 16px; }
+.hint-inline { color: var(--text-dim); font-size: 12px; }
+#notify-status { margin-top: 8px; }
 
 /* ================= Responsive ================= */
 @media (max-width: 720px) {
-  .setup-card { padding: 22px; }
+  main { padding: 18px 14px 60px; }
+  .app-header { padding: 12px 14px; }
+  .brand p { display: none; }
+  .btn-lg { width: 100%; }
+  .setup-card { padding: 22px 18px; margin-top: 1vh; }
   .level-selector { grid-template-columns: 1fr; }
   .report-content { padding: 26px 20px; }
   .provider-list { grid-template-columns: 1fr; }
   .run-header { flex-direction: column; }
+  .report-toolbar { flex-direction: column; align-items: flex-start; }
+  .source-input-row { flex-direction: column; }
+}
+@media (max-width: 480px) {
+  .provider-badge span { display: none; }
+  .provider-badge { padding: 6px; }
+  .brand h1 { font-size: 16px; }
+  #btn-settings { white-space: nowrap; }
+  .agent-grid { grid-template-columns: repeat(2, 1fr); }
+  .agent-avatar { width: 48px; height: 48px; }
+  .report-buttons { width: 100%; }
+  .report-buttons .btn { flex: 1; min-width: 40%; }
+  .modal-body { padding: 16px; }
+  .report-content { padding: 20px 14px; }
 }

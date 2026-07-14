@@ -65,7 +65,7 @@
   }
 
   function loadSettings() {
-    const defaults = { provider: 'demo', concurrency: 4, keys: {}, models: {} };
+    const defaults = { provider: 'demo', concurrency: 4, notify: true, keys: {}, models: {} };
     try {
       const raw = localStorage.getItem(SETTINGS_KEY);
       if (raw) {
@@ -101,7 +101,7 @@
       label.className = 'provider-option';
       label.innerHTML =
         '<input type="radio" name="provider" value="' + key + '"' + (state.settings.provider === key ? ' checked' : '') + '>' +
-        '<div class="p-body"><span>' + p.icon + '</span><span>' + p.label + '</span></div>';
+        '<div class="p-body">' + Icons.svg(p.icon) + '<span>' + p.label + '</span></div>';
       list.appendChild(label);
 
       const block = document.createElement('div');
@@ -137,6 +137,21 @@
 
     $('#concurrency-input').value = state.settings.concurrency;
     $('#concurrency-value').textContent = state.settings.concurrency;
+    $('#notify-input').checked = !!state.settings.notify;
+    updateNotifyStatus();
+  }
+
+  function updateNotifyStatus() {
+    const el = $('#notify-status');
+    if (!('Notification' in window)) {
+      el.textContent = 'このブラウザは通知に対応していません。';
+    } else if (Notification.permission === 'denied') {
+      el.textContent = '通知がブラウザ側でブロックされています。ブラウザの設定から許可してください。';
+    } else if (Notification.permission === 'granted') {
+      el.textContent = '通知は許可されています。';
+    } else {
+      el.textContent = '分析開始時に通知の許可を求めます。';
+    }
   }
 
   function commitSettings() {
@@ -149,13 +164,42 @@
       state.settings.models[input.dataset.modelFor] = input.value.trim() || AI.PROVIDERS[input.dataset.modelFor].defaultModel;
     });
     state.settings.concurrency = parseInt($('#concurrency-input').value, 10) || 4;
+    state.settings.notify = $('#notify-input').checked;
     saveSettings();
     updateProviderBadge();
+    if (state.settings.notify) requestNotifyPermission().then(updateNotifyStatus);
   }
 
   function updateProviderBadge() {
     const p = AI.PROVIDERS[state.settings.provider];
-    $('#provider-badge').textContent = p.icon + ' ' + p.label;
+    $('#provider-badge').innerHTML = Icons.svg(p.icon) + '<span>' + p.label + '</span>';
+  }
+
+  /* ============ 通知（PWA） ============ */
+  async function requestNotifyPermission() {
+    if (!state.settings.notify || !('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+      try { await Notification.requestPermission(); } catch (e) { /* 無視 */ }
+    }
+  }
+
+  function sendNotification(title, body) {
+    if (!state.settings.notify) return;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const options = {
+      body: body,
+      icon: 'icons/icon-192.png',
+      badge: 'icons/icon-192.png',
+      tag: 'aml-analysis',
+    };
+    // Service Worker経由（PWA/バックグラウンドでも届く）を優先し、不可なら直接表示
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.ready
+        .then(function (reg) { return reg.showNotification(title, options); })
+        .catch(function () { try { new Notification(title, options); } catch (e) { /* 無視 */ } });
+    } else {
+      try { new Notification(title, options); } catch (e) { /* 無視 */ }
+    }
   }
 
   /* ============ モーダル ============ */
@@ -181,10 +225,10 @@
         '- それぞれ異なる専門役割にする（市場規模、競合、顧客、トレンド、価格、チャネル、リスク、規制、SNS、海外事例など、テーマに合わせて多角的に）\n' +
         '- name はカタカナ3〜4文字の親しみやすい名前（重複禁止）\n' +
         '- role は「〜アナリスト」「〜リサーチャー」などの肩書き（12文字以内）\n' +
-        '- emoji は役割を表す絵文字1つ\n' +
+        '- icon は次の一覧から役割に最も合うものを1つ選ぶ: ' + Icons.TEAM_ICON_NAMES.join(', ') + '\n' +
         '- focus はそのエージェントが分析する観点の説明（50字以内）\n\n' +
         '出力形式（この形式のJSON配列のみを出力）:\n' +
-        '[{"name":"ハルト","role":"市場規模アナリスト","emoji":"📊","focus":"市場規模と成長率を推定する"}]';
+        '[{"name":"ハルト","role":"市場規模アナリスト","icon":"chart","focus":"市場規模と成長率を推定する"}]';
       const text = await AI.call({
         provider: state.settings.provider,
         apiKey: currentKey(),
@@ -205,7 +249,7 @@
           return {
             name: String(a.name).slice(0, 10),
             role: String(a.role).slice(0, 20),
-            emoji: (a.emoji && String(a.emoji).slice(0, 4)) || '🤖',
+            icon: (a.icon && Icons.has(String(a.icon))) ? String(a.icon) : Icons.forRole(String(a.role)),
             focus: String(a.focus || a.role).slice(0, 120),
           };
         });
@@ -233,7 +277,7 @@
       '役割: ' + agent.role + '\n' +
       '担当領域: ' + agent.focus + '\n' +
       'あなたはチームの一員として、自分の担当領域に集中して分析報告を行います。' +
-      '報告は日本語のMarkdown形式（見出し・箇条書き・必要に応じて表）で書いてください。' +
+      '報告は日本語のMarkdown形式（見出し・箇条書き・必要に応じて表）で書いてください。絵文字や顔文字は一切使用しないでください。' +
       (state.sourceDigest
         ? 'ユーザー提供の参考資料が最重要の根拠です。資料の内容を精読し、担当領域に関係する事実・数値を積極的に引用してください。'
         : 'Web検索はできないため、学習知識に基づく分析であることを踏まえ、具体的な数値は「推定」と明記してください。');
@@ -313,7 +357,7 @@
 
     state.synth.status = 'running';
     updateSynthCard();
-    setPhase('✒️ ' + state.synth.name + ' が資料を作成中…', 92);
+    setPhase(state.synth.name + ' が資料を作成中…', 92, 'pen');
 
     const reports = done.map(function (a) {
       let r = a.report;
@@ -324,7 +368,8 @@
     const system =
       'あなたは「' + state.synth.name + '」という名前の資料作成ディレクターAIです。' +
       '複数の専門エージェントの分析報告を統合し、1つの完成された市場分析資料（日本語・Markdown形式）を作成します。' +
-      '見出し構造を整え、重複を排除し、矛盾があれば両論併記し、読み手がそのまま意思決定に使える品質に仕上げてください。';
+      '見出し構造を整え、重複を排除し、矛盾があれば両論併記し、読み手がそのまま意思決定に使える品質に仕上げてください。' +
+      '絵文字や顔文字は一切使用しないでください。';
     const prompt =
       '【分析テーマ】\n' + state.topic + '\n\n' +
       '【分析レベル】' + lv.name + '\n' +
@@ -368,10 +413,10 @@
   /* ============ UI 描画 ============ */
   function statusHTML(agent) {
     switch (agent.status) {
-      case 'waiting': return '<span class="agent-status status-waiting">待機中</span>';
+      case 'waiting': return '<span class="agent-status status-waiting">' + Icons.svg('clock') + '待機中</span>';
       case 'running': return '<span class="agent-status status-running"><span class="spinner"></span>分析中…</span>';
-      case 'done':    return '<span class="agent-status status-done">✓ 報告完了</span>';
-      case 'error':   return '<span class="agent-status status-error">⚠ エラー</span>';
+      case 'done':    return '<span class="agent-status status-done">' + Icons.svg('check') + '報告完了</span>';
+      case 'error':   return '<span class="agent-status status-error">' + Icons.svg('alert') + 'エラー</span>';
     }
     return '';
   }
@@ -385,7 +430,7 @@
       card.id = 'agent-card-' + agent.id;
       card.style.animationDelay = (i * 40) + 'ms';
       card.innerHTML =
-        '<div class="agent-avatar">' + Agents.avatarSVG(agent.name + agent.role, agent.emoji) + '</div>' +
+        '<div class="agent-avatar">' + Agents.avatarSVG(agent.name + agent.role, agent.icon) + '</div>' +
         '<div class="agent-name">' + escapeText(agent.name) + '</div>' +
         '<div class="agent-role">' + escapeText(agent.role) + '</div>' +
         '<div class="status-slot">' + statusHTML(agent) + '</div>';
@@ -404,7 +449,7 @@
     card.className = 'synth-card';
     card.id = 'synth-card';
     card.innerHTML =
-      '<div class="agent-avatar">' + Agents.avatarSVG(s.name + s.role, s.emoji) + '</div>' +
+      '<div class="agent-avatar">' + Agents.avatarSVG(s.name + s.role, s.icon) + '</div>' +
       '<div class="texts">' +
       '<div class="synth-label">DOCUMENT AGENT</div>' +
       '<div class="agent-name">' + escapeText(s.name) + '</div>' +
@@ -430,25 +475,25 @@
 
   function openAgentModal(agent) {
     $('#agent-modal-profile').innerHTML =
-      '<div class="agent-avatar">' + Agents.avatarSVG(agent.name + agent.role, agent.emoji) + '</div>' +
+      '<div class="agent-avatar">' + Agents.avatarSVG(agent.name + agent.role, agent.icon) + '</div>' +
       '<div><div class="name">' + escapeText(agent.name) + '</div>' +
       '<div class="role">' + escapeText(agent.role) + '｜' + escapeText(agent.focus || '') + '</div></div>';
     let body;
     if (agent.status === 'done' && agent.report) {
       body = MD.toHtml(agent.report);
     } else if (agent.status === 'error') {
-      body = '<p style="color:var(--red)">⚠ 分析中にエラーが発生しました。</p><p class="hint">' + escapeText(agent.error || '') + '</p>';
+      body = '<p style="color:var(--red)">分析中にエラーが発生しました。</p><p class="hint">' + escapeText(agent.error || '') + '</p>';
     } else if (agent.status === 'running') {
-      body = '<p>🔎 現在分析中です。完了すると、ここに報告が表示されます。</p>';
+      body = '<p>現在分析中です。完了すると、ここに報告が表示されます。</p>';
     } else {
-      body = '<p>⏳ 実行待ちです。</p>';
+      body = '<p>実行待ちです。</p>';
     }
     $('#agent-modal-report').innerHTML = body;
     openModal('agent-modal');
   }
 
-  function setPhase(text, percent) {
-    $('#run-phase').textContent = text;
+  function setPhase(text, percent, icon) {
+    $('#run-phase').innerHTML = (icon ? Icons.svg(icon, 'phase-icon') : '') + '<span>' + escapeText(text) + '</span>';
     if (percent != null) $('#progress-bar').style.width = percent + '%';
   }
 
@@ -463,7 +508,7 @@
     $('#progress-text').textContent =
       'エージェント報告: ' + finished + ' / ' + total + ' 体完了' + (errors ? '（エラー ' + errors + '体）' : '');
     if (finished < total) {
-      setPhase('🤖 ' + total + '体のエージェントが並列分析中…');
+      setPhase(total + '体のエージェントが並列分析中…', null, 'bot');
     }
   }
 
@@ -485,12 +530,12 @@
     }
     const provider = AI.PROVIDERS[state.settings.provider];
     if (provider.needsKey && !currentKey()) {
-      warning.textContent = provider.label + ' のAPIキーが未設定です。右上の「⚙️ 設定」から登録するか、デモモードを選択してください。';
+      warning.textContent = provider.label + ' のAPIキーが未設定です。右上の「設定」から登録するか、デモモードを選択してください。';
       warning.hidden = false;
       return;
     }
     if (Sources.loadingCount() > 0) {
-      warning.textContent = '参考資料の取り込みが完了していません。完了するまで少しお待ちください（不要な資料は ✕ で削除できます）。';
+      warning.textContent = '参考資料の取り込みが完了していません。完了するまで少しお待ちください（不要な資料は削除ボタンで外せます）。';
       warning.hidden = false;
       return;
     }
@@ -516,7 +561,9 @@
     $('#agent-grid').innerHTML = '';
     $('#synth-slot').innerHTML = '';
     $('#progress-text').textContent = '';
-    setPhase('🧭 分析テーマに合わせてチームを編成中…', 4);
+    setPhase('分析テーマに合わせてチームを編成中…', 4, 'compass');
+
+    requestNotifyPermission();
 
     const signal = state.abort.signal;
     try {
@@ -542,14 +589,17 @@
 
       // 4) 完成
       const secs = Math.round((new Date() - state.startedAt) / 1000);
-      setPhase('✅ 分析完了（所要 ' + Math.floor(secs / 60) + '分' + (secs % 60) + '秒）', 100);
+      setPhase('分析完了（所要 ' + Math.floor(secs / 60) + '分' + (secs % 60) + '秒）', 100, 'check');
       showReport();
+      sendNotification('市場分析が完了しました',
+        '「' + state.topic.slice(0, 40) + '」の資料ができあがりました。タップして確認してください。');
     } catch (e) {
       if (e.name === 'AbortError' || signal.aborted) {
-        setPhase('⏹ 停止しました');
+        setPhase('停止しました', null, 'stop');
       } else {
-        setPhase('⚠ エラーが発生しました');
+        setPhase('エラーが発生しました', null, 'alert');
         $('#progress-text').textContent = e.message || String(e);
+        sendNotification('市場分析でエラーが発生しました', e.message || String(e));
         if (state.synth && state.synth.status === 'running') {
           state.synth.status = 'error';
           state.synth.error = e.message || String(e);
@@ -568,7 +618,7 @@
     state.running = false;
     $('#btn-stop').hidden = true;
     $('#btn-new').hidden = false;
-    setPhase('⏹ 停止しました');
+    setPhase('停止しました', null, 'stop');
   }
 
   function resetToSetup() {
@@ -641,11 +691,11 @@
 
   /* ============ ソースUI ============ */
   function sourceIcon(src) {
-    if (src.type === 'url') return '🔗';
+    if (src.type === 'url') return 'link';
     const n = src.name.toLowerCase();
-    if (/\.pdf$/.test(n)) return '📕';
-    if (/\.(xlsx|xlsm|xls|ods|csv|tsv)$/.test(n)) return '📊';
-    return '📄';
+    if (/\.pdf$/.test(n)) return 'file';
+    if (/\.(xlsx|xlsm|xls|ods|csv|tsv)$/.test(n)) return 'chart';
+    return 'alignleft';
   }
 
   function renderSourceList() {
@@ -654,13 +704,13 @@
     Sources.all.forEach(function (src) {
       const li = document.createElement('li');
       li.className = 'source-item ' + src.status;
-      const detail = src.status === 'error' ? ('⚠ ' + (src.error || '取り込み失敗')) : src.detail;
+      const detail = src.status === 'error' ? (src.error || '取り込み失敗') : src.detail;
       li.innerHTML =
-        '<span class="s-icon">' + sourceIcon(src) + '</span>' +
+        '<span class="s-icon">' + Icons.svg(sourceIcon(src)) + '</span>' +
         '<span class="s-name" title="' + escapeText(src.name) + '">' + escapeText(src.name) + '</span>' +
         (src.status === 'loading' ? '<span class="spinner"></span>' : '') +
         '<span class="s-detail">' + escapeText(detail) + '</span>' +
-        '<button class="s-remove" title="削除" data-id="' + src.id + '">✕</button>';
+        '<button class="s-remove" title="削除" data-id="' + src.id + '">' + Icons.svg('x') + '</button>';
       li.querySelector('.s-remove').addEventListener('click', function () { Sources.remove(src.id); });
       list.appendChild(li);
     });
@@ -708,11 +758,23 @@
     });
   }
 
+  /* ============ PWA: Service Worker登録 ============ */
+  function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    const h = location.hostname;
+    if (location.protocol !== 'https:' && h !== 'localhost' && h !== '127.0.0.1') return;
+    navigator.serviceWorker.register('sw.js').catch(function (e) {
+      console.warn('Service Workerの登録に失敗しました:', e);
+    });
+  }
+
   /* ============ イベント登録 ============ */
   document.addEventListener('DOMContentLoaded', function () {
+    Icons.hydrate();
     renderSettings();
     updateProviderBadge();
     setupSourceEvents();
+    registerServiceWorker();
 
     $('#btn-start').addEventListener('click', startAnalysis);
     $('#btn-stop').addEventListener('click', stopAnalysis);

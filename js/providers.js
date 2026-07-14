@@ -5,14 +5,14 @@
   const PROVIDERS = {
     demo: {
       label: 'デモモード',
-      icon: '🧪',
+      icon: 'flask',
       needsKey: false,
       defaultModel: 'demo',
       note: 'APIキー不要。ダミーの分析結果で動作を確認できます。',
     },
     claude: {
       label: 'Claude (Anthropic)',
-      icon: '🟠',
+      icon: 'sparkle',
       needsKey: true,
       defaultModel: 'claude-sonnet-5',
       keyPlaceholder: 'sk-ant-api03-...',
@@ -20,7 +20,7 @@
     },
     openai: {
       label: 'ChatGPT (OpenAI)',
-      icon: '🟢',
+      icon: 'message',
       needsKey: true,
       defaultModel: 'gpt-4o',
       keyPlaceholder: 'sk-...',
@@ -28,7 +28,7 @@
     },
     gemini: {
       label: 'Gemini (Google)',
-      icon: '🔵',
+      icon: 'gem',
       needsKey: true,
       defaultModel: 'gemini-2.5-flash',
       keyPlaceholder: 'AIza...',
@@ -36,7 +36,7 @@
     },
     grok: {
       label: 'Grok (xAI)',
-      icon: '⚫',
+      icon: 'zap',
       needsKey: true,
       defaultModel: 'grok-3',
       keyPlaceholder: 'xai-...',
@@ -134,7 +134,7 @@
           resolve([
             '# 市場分析レポート（デモ）',
             '',
-            '> ⚠️ これは **デモモード** の出力です。設定画面で Claude / ChatGPT / Gemini / Grok のAPIキーを設定すると、実際のAIによる分析が行われます。',
+            '> これは **デモモード** の出力です。設定画面で Claude / ChatGPT / Gemini / Grok のAPIキーを設定すると、実際のAIによる分析が行われます。',
             '',
             '## 1. エグゼクティブサマリー',
             '「' + topic + '」について、' + (opts.demoCount || 0) + '体のエージェントによる並列分析を実施しました。' +
@@ -147,9 +147,9 @@
             '',
             '| 項目 | 評価 | コメント |',
             '|---|---|---|',
-            '| 市場成長性 | ★★★★☆ | 安定成長（デモ） |',
-            '| 競争強度 | ★★★☆☆ | 中程度（デモ） |',
-            '| 参入障壁 | ★★☆☆☆ | 比較的低い（デモ） |',
+            '| 市場成長性 | 4 / 5 | 安定成長（デモ） |',
+            '| 競争強度 | 3 / 5 | 中程度（デモ） |',
+            '| 参入障壁 | 2 / 5 | 比較的低い（デモ） |',
             '',
             '## 3. 戦略提言',
             '1. ターゲットセグメントの明確化と一点突破',
@@ -167,9 +167,9 @@
             '「' + topic + '」について、' + role + 'の観点から分析しました。' +
             (opts.demoSourceCount ? '（参考資料' + opts.demoSourceCount + '件を受領。デモモードのため内容は解析されません）' : ''),
             '',
-            '- 主要な発見①：市場には未充足ニーズが存在（デモデータ）',
-            '- 主要な発見②：競合は大手3社に集中しロングテールが手薄（デモデータ）',
-            '- 主要な発見③：SNS上の言及は直近6ヶ月で増加傾向（デモデータ）',
+            '- 主要な発見 1：市場には未充足ニーズが存在（デモデータ）',
+            '- 主要な発見 2：競合は大手3社に集中しロングテールが手薄（デモデータ）',
+            '- 主要な発見 3：SNS上の言及は直近6ヶ月で増加傾向（デモデータ）',
             '',
             '**結論：** 参入余地はあるが、差別化ポイントの明確化が必須。',
             '',

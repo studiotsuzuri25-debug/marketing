@@ -2,24 +2,32 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Agent Market Lab — マルチAIエージェント市場分析</title>
+<meta name="description" content="複数のAIエージェントが並列で市場分析を行い、資料を自動生成するツール">
+<meta name="theme-color" content="#0e1117">
 <link rel="stylesheet" href="css/style.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Market Lab">
 </head>
 <body>
 
 <header class="app-header">
   <div class="brand">
-    <span class="brand-icon">🤖</span>
+    <span class="brand-icon" data-icon="bot"></span>
     <div>
       <h1>Agent Market Lab</h1>
       <p>マルチAIエージェント市場分析ツール</p>
     </div>
   </div>
   <div class="header-actions">
-    <span id="provider-badge" class="provider-badge">デモモード</span>
-    <button id="btn-settings" class="btn btn-ghost" title="設定">⚙️ 設定</button>
+    <span id="provider-badge" class="provider-badge"></span>
+    <button id="btn-settings" class="btn btn-ghost btn-icon-text" title="設定"><span data-icon="settings"></span><span class="btn-label">設定</span></button>
   </div>
 </header>
 
@@ -35,10 +43,11 @@
       <p class="hint">WebサイトのURLや、テキスト / CSV / Excel / PDF などのファイルを複数追加できます。エージェントは追加された資料を根拠に分析します。<strong>追加しなくても指示文だけで分析を開始できます。</strong></p>
       <div class="source-input-row">
         <input type="url" id="url-input" placeholder="https://example.com/market-report">
-        <button class="btn" id="btn-add-url">＋ URLを追加</button>
+        <button class="btn btn-icon-text" id="btn-add-url"><span data-icon="link"></span><span class="btn-label">URLを追加</span></button>
       </div>
       <div id="drop-zone" class="drop-zone">
-        📎 ファイルをここにドラッグ＆ドロップ、または <span class="link">クリックして選択</span>
+        <span class="drop-icon" data-icon="paperclip"></span>
+        <span>ファイルをここにドラッグ＆ドロップ、または <span class="link">クリックして選択</span></span>
         <span class="drop-hint">対応形式: .txt .md .csv .json .html .xlsx .pdf など</span>
         <input type="file" id="file-input" multiple hidden
                accept=".txt,.md,.markdown,.csv,.tsv,.json,.log,.html,.htm,.xml,.yaml,.yml,.xlsx,.xlsm,.xls,.ods,.pdf,text/*,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
@@ -51,7 +60,7 @@
         <label class="level-card">
           <input type="radio" name="level" value="1">
           <div class="level-body">
-            <span class="level-icon">⚡</span>
+            <span class="level-icon" data-icon="zap"></span>
             <strong>Lv.1 クイック</strong>
             <span class="level-desc">8体のエージェントが要点を素早く分析。まず全体像を掴みたいときに。</span>
             <span class="level-meta">約8エージェント・短時間</span>
@@ -60,7 +69,7 @@
         <label class="level-card">
           <input type="radio" name="level" value="2" checked>
           <div class="level-body">
-            <span class="level-icon">🔍</span>
+            <span class="level-icon" data-icon="search"></span>
             <strong>Lv.2 スタンダード</strong>
             <span class="level-desc">16体のエージェントがバランスよく多角的に分析。通常はこちら。</span>
             <span class="level-meta">約16エージェント・標準</span>
@@ -69,7 +78,7 @@
         <label class="level-card">
           <input type="radio" name="level" value="3">
           <div class="level-body">
-            <span class="level-icon">🧠</span>
+            <span class="level-icon" data-icon="layers"></span>
             <strong>Lv.3 ディープ</strong>
             <span class="level-desc">28体のエージェントがあらゆる角度から極めて詳細に徹底分析。</span>
             <span class="level-meta">約28エージェント・最高精度</span>
@@ -79,7 +88,7 @@
 
       <div class="setup-footer">
         <p id="setup-warning" class="warning" hidden></p>
-        <button id="btn-start" class="btn btn-primary btn-lg">🚀 エージェントチームを起動する</button>
+        <button id="btn-start" class="btn btn-primary btn-lg btn-icon-text"><span data-icon="rocket"></span><span class="btn-label">エージェントチームを起動する</span></button>
       </div>
     </div>
   </section>
@@ -88,12 +97,12 @@
   <section id="run-view" class="view" hidden>
     <div class="run-header">
       <div class="run-info">
-        <h2 id="run-phase">チームを編成中…</h2>
+        <h2 id="run-phase"></h2>
         <p id="run-topic" class="run-topic"></p>
       </div>
       <div class="run-actions">
-        <button id="btn-stop" class="btn btn-danger">⏹ 停止</button>
-        <button id="btn-new" class="btn btn-ghost" hidden>＋ 新しい分析</button>
+        <button id="btn-stop" class="btn btn-danger btn-icon-text"><span data-icon="stop"></span><span class="btn-label">停止</span></button>
+        <button id="btn-new" class="btn btn-ghost btn-icon-text" hidden><span data-icon="plus"></span><span class="btn-label">新しい分析</span></button>
       </div>
     </div>
     <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
@@ -105,12 +114,12 @@
     <!-- ============ 完成資料 ============ -->
     <section id="report-section" class="report-section" hidden>
       <div class="report-toolbar">
-        <h2>📄 完成資料</h2>
+        <h2 class="h-icon"><span data-icon="file"></span>完成資料</h2>
         <div class="report-buttons">
-          <button class="btn btn-primary" id="btn-dl-pdf">🖨 PDF</button>
-          <button class="btn btn-ghost" id="btn-dl-html">HTML</button>
-          <button class="btn btn-ghost" id="btn-dl-md">Markdown</button>
-          <button class="btn btn-ghost" id="btn-dl-txt">テキスト</button>
+          <button class="btn btn-primary btn-icon-text" id="btn-dl-pdf"><span data-icon="printer"></span><span class="btn-label">PDF</span></button>
+          <button class="btn btn-ghost btn-icon-text" id="btn-dl-html"><span data-icon="code"></span><span class="btn-label">HTML</span></button>
+          <button class="btn btn-ghost btn-icon-text" id="btn-dl-md"><span data-icon="download"></span><span class="btn-label">Markdown</span></button>
+          <button class="btn btn-ghost btn-icon-text" id="btn-dl-txt"><span data-icon="alignleft"></span><span class="btn-label">テキスト</span></button>
         </div>
       </div>
       <article id="report-content" class="report-content markdown-body"></article>
@@ -122,8 +131,8 @@
 <div id="settings-modal" class="modal-backdrop" hidden>
   <div class="modal">
     <div class="modal-header">
-      <h2>⚙️ 設定</h2>
-      <button class="modal-close" data-close="settings-modal">✕</button>
+      <h2 class="h-icon"><span data-icon="settings"></span>設定</h2>
+      <button class="modal-close" data-close="settings-modal" title="閉じる"><span data-icon="x"></span></button>
     </div>
     <div class="modal-body">
       <h3>使用するAI</h3>
@@ -138,7 +147,15 @@
         <span id="concurrency-value">4</span>
       </div>
 
-      <p class="hint note">🔒 APIキーはこのブラウザの localStorage にのみ保存され、選択したAI事業者以外へ送信されることはありません。</p>
+      <h3>通知</h3>
+      <label class="check-row">
+        <input type="checkbox" id="notify-input" checked>
+        <span class="check-icon" data-icon="bell"></span>
+        <span>分析が完了したらプッシュ通知を受け取る<span class="hint-inline">（別のタブやアプリを見ていても完了がわかります）</span></span>
+      </label>
+      <p class="hint" id="notify-status"></p>
+
+      <p class="hint note h-icon"><span data-icon="lock"></span>APIキーはこのブラウザの localStorage にのみ保存され、選択したAI事業者以外へ送信されることはありません。</p>
     </div>
     <div class="modal-footer">
       <button class="btn btn-primary" id="btn-save-settings">保存</button>
@@ -151,7 +168,7 @@
   <div class="modal modal-wide">
     <div class="modal-header">
       <div class="agent-modal-profile" id="agent-modal-profile"></div>
-      <button class="modal-close" data-close="agent-modal">✕</button>
+      <button class="modal-close" data-close="agent-modal" title="閉じる"><span data-icon="x"></span></button>
     </div>
     <div class="modal-body">
       <article id="agent-modal-report" class="markdown-body"></article>
@@ -159,6 +176,7 @@
   </div>
 </div>
 
+<script src="js/icons.js"></script>
 <script src="js/markdown.js"></script>
 <script src="js/providers.js"></script>
 <script src="js/agents.js"></script>
