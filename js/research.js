@@ -84,6 +84,57 @@
     return { via: 'Wikipedia', content: parts.join('\n\n') };
   }
 
+  /* Google検索サジェスト: 実際に検索されている関連キーワード（検索需要の指標） */
+  async function googleSuggest(topic, signal) {
+    const t = topic.replace(/\s+/g, ' ').slice(0, 40);
+    const seeds = [t, t + ' おすすめ', t + ' 口コミ', t + ' 比較', t + ' 人気'];
+    const keywords = [];
+    for (let i = 0; i < seeds.length; i++) {
+      if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      try {
+        const u = 'https://www.google.com/complete/search?client=firefox&hl=ja&q=' + encodeURIComponent(seeds[i]);
+        const r = await fetchWithTimeout('https://api.allorigins.win/raw?url=' + encodeURIComponent(u), 15000, signal);
+        if (!r.ok) continue;
+        const d = JSON.parse(await r.text());
+        (d[1] || []).forEach(function (k) {
+          if (keywords.indexOf(k) === -1) keywords.push(k);
+        });
+      } catch (e) {
+        if (e.name === 'AbortError' && signal && signal.aborted) throw e;
+      }
+    }
+    if (!keywords.length) throw new Error('suggest empty');
+    return {
+      via: 'Google検索サジェスト',
+      content: 'Google検索のオートコンプリートで表示される関連キーワード（＝実際に検索されている語。検索需要の指標）:\n' +
+        keywords.slice(0, 40).map(function (k) { return '- ' + k; }).join('\n') +
+        '\n出典: Google検索サジェスト（https://www.google.com/complete/search）',
+    };
+  }
+
+  /* Googleトレンド: 本日の急上昇検索ワード（日本・テーマ非限定の一般トレンド） */
+  async function googleTrends(signal) {
+    const rss = 'https://trends.google.co.jp/trends/trending/rss?geo=JP';
+    const r = await fetchWithTimeout('https://api.allorigins.win/raw?url=' + encodeURIComponent(rss), 20000, signal);
+    if (!r.ok) throw new Error('trends ' + r.status);
+    const xml = await r.text();
+    const items = [];
+    const re = /<item>([\s\S]*?)<\/item>/g;
+    let m;
+    while ((m = re.exec(xml)) && items.length < 15) {
+      const block = m[1];
+      const title = stripTags((block.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '');
+      const traffic = stripTags((block.match(/<ht:approx_traffic>([\s\S]*?)<\/ht:approx_traffic>/) || [])[1] || '');
+      if (title) items.push('- ' + title + (traffic ? '（検索数 ' + traffic + '）' : ''));
+    }
+    if (!items.length) throw new Error('trends empty');
+    return {
+      via: 'Googleトレンド',
+      content: '本日の日本の急上昇検索ワード（テーマ非限定の一般トレンド。市況・世間の関心の参考情報）:\n' +
+        items.join('\n') + '\n出典: Googleトレンド（https://trends.google.co.jp/）',
+    };
+  }
+
   async function researchQuery(query, signal) {
     const methods = [searchReader, newsRss, wikipedia];
     for (let i = 0; i < methods.length; i++) {
@@ -124,24 +175,30 @@
    * @returns {Promise<{digest:string, results:Array<{query,via}>, failed:number}>}
    */
   async function run(topic, queryCount, totalCap, signal, onProgress) {
-    const queries = buildQueries(topic, queryCount);
+    const tasks = buildQueries(topic, queryCount).map(function (q) {
+      return { label: q, fn: function () { return researchQuery(q, signal); } };
+    });
+    // キーワード調査は常時実行（Google検索需要とトレンド）
+    tasks.push({ label: 'Google検索サジェスト', fn: function () { return googleSuggest(topic, signal); } });
+    tasks.push({ label: 'Googleトレンド急上昇', fn: function () { return googleTrends(signal); } });
+
     const results = [];
     let failed = 0;
     // 外部サービスへの負荷と失敗率を抑えるため2並列
     let idx = 0;
     async function lane() {
-      while (idx < queries.length) {
+      while (idx < tasks.length) {
         if (signal && signal.aborted) return;
-        const q = queries[idx++];
+        const task = tasks[idx++];
         try {
-          const r = await researchQuery(q, signal);
-          if (r) results.push({ query: q, via: r.via, content: r.content });
+          const r = await task.fn();
+          if (r) results.push({ query: task.label, via: r.via, content: r.content });
           else failed++;
         } catch (e) {
           if (e.name === 'AbortError') return;
           failed++;
         }
-        if (onProgress) onProgress(results.length + failed, queries.length);
+        if (onProgress) onProgress(results.length + failed, tasks.length);
       }
     }
     await Promise.all([lane(), lane()]);

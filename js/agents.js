@@ -13,6 +13,7 @@
     { role: '流通チャネル調査員', icon: 'truck', focus: '販売チャネルの構造、EC/実店舗の比率、チャネル別の攻略法を分析する' },
     { role: 'SNS動向アナリスト', icon: 'phone', focus: 'SNS全般の話題性、インフルエンサー動向、UGC・口コミの傾向を分析する' },
     { role: 'Instagram分析官', icon: 'camera', focus: 'Instagramのトレンド、人気ハッシュタグ、検索されるキーワード、伸びている投稿・支持されるビジュアル表現の傾向を分析する' },
+    { role: '検索キーワードアナリスト', icon: 'search', focus: 'Google検索のトレンド・サジェスト・検索需要の高いキーワード・検索意図と、AI検索（AIへの質問傾向とAIが提示する回答）の傾向を分析する' },
     { role: '規制・法務リサーチャー', icon: 'scale', focus: '関連する法規制、業界ルール、コンプライアンス上の注意点を分析する' },
     { role: '技術動向スカウト', icon: 'cpu', focus: '関連技術の進化、DX動向、テクノロジーがもたらす変化を分析する' },
     { role: '海外市場リサーチャー', icon: 'globe', focus: '海外の類似市場・先行事例から国内市場への示唆を導く' },
@@ -244,6 +245,9 @@
     const roles = shuffled(ROLE_POOL, seed).slice(0, Math.min(count, ROLE_POOL.length));
     if (!roles.some(function (r) { return /Instagram|SNS/.test(r.role); })) {
       roles[roles.length - 1] = ROLE_POOL.find(function (r) { return r.role === 'Instagram分析官'; });
+    }
+    if (roles.length >= 2 && !roles.some(function (r) { return /検索キーワード/.test(r.role); })) {
+      roles[roles.length - 2] = ROLE_POOL.find(function (r) { return r.role === '検索キーワードアナリスト'; });
     }
     const names = shuffled(NAME_POOL, seed + 7);
     return roles.map(function (r, i) {
