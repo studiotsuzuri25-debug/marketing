@@ -39,10 +39,10 @@
       label: 'Gemini (Google)',
       icon: 'gem',
       needsKey: true,
-      defaultModel: 'gemini-2.5-flash',
+      defaultModel: 'gemini-flash-latest',
       modelOptions: [
-        { id: 'gemini-2.5-flash', note: '無料枠あり（推奨）' },
-        { id: 'gemini-2.5-pro', note: '高性能（課金設定が必要）' },
+        { id: 'gemini-flash-latest', note: '常に最新のFlash（推奨）' },
+        { id: 'gemini-pro-latest', note: '常に最新のPro（課金推奨）' },
       ],
       keyPlaceholder: 'AIza...',
       keyUrl: 'https://aistudio.google.com/apikey',
@@ -213,6 +213,47 @@
     });
   }
 
+  /* APIキーで実際に利用可能なモデルの一覧を各社のAPIから取得する */
+  async function listModels(provider, apiKey) {
+    if (provider === 'gemini') {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&key=' + encodeURIComponent(apiKey));
+      if (!r.ok) throw await readError(r);
+      const d = await r.json();
+      return (d.models || [])
+        .filter(function (m) { return (m.supportedGenerationMethods || []).indexOf('generateContent') !== -1; })
+        .map(function (m) { return String(m.name || '').replace(/^models\//, ''); })
+        .filter(function (n) { return /gemini/.test(n) && !/embedding|aqa|tts|image-|imagen|audio|live/.test(n); });
+    }
+    if (provider === 'claude') {
+      const r = await fetch('https://api.anthropic.com/v1/models?limit=100', {
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+      });
+      if (!r.ok) throw await readError(r);
+      const d = await r.json();
+      return (d.data || []).map(function (m) { return m.id; });
+    }
+    if (provider === 'openai' || provider === 'grok') {
+      const base = provider === 'grok' ? 'https://api.x.ai/v1' : 'https://api.openai.com/v1';
+      const r = await fetch(base + '/models', { headers: { 'authorization': 'Bearer ' + apiKey } });
+      if (!r.ok) throw await readError(r);
+      const d = await r.json();
+      let ids = (d.data || []).map(function (m) { return m.id; });
+      if (provider === 'openai') {
+        ids = ids.filter(function (n) {
+          return /^(gpt-|o\d|chatgpt)/.test(n) && !/audio|realtime|tts|transcribe|embedding|whisper|image|dall|moderation|search|instruct/.test(n);
+        });
+      } else {
+        ids = ids.filter(function (n) { return /^grok/.test(n) && !/image|vision-beta/.test(n); });
+      }
+      return ids;
+    }
+    throw new Error('このプロバイダはモデル一覧取得に対応していません');
+  }
+
   /**
    * 統一呼び出しインターフェース
    * @param {object} opts {provider, apiKey, model, system, prompt, maxTokens, signal, demo*}
@@ -229,5 +270,5 @@
     }
   }
 
-  window.AI = { PROVIDERS: PROVIDERS, call: callAI };
+  window.AI = { PROVIDERS: PROVIDERS, call: callAI, listModels: listModels };
 })();

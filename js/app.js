@@ -121,11 +121,15 @@
           '<input type="text" data-model-for="' + key + '" placeholder="' + p.defaultModel + '" value="' +
           (state.settings.models[key] || p.defaultModel).replace(/"/g, '&quot;') + '">' +
           (p.modelOptions ?
-            '<div class="model-chips">' + p.modelOptions.map(function (m) {
+            '<div class="model-chips" data-chips-for="' + key + '">' + p.modelOptions.map(function (m) {
               return '<button type="button" class="model-chip" data-model-chip="' + key + '" data-model-id="' + m.id + '">' +
                 m.id + '<span class="chip-note">' + m.note + '</span></button>';
             }).join('') + '</div>'
             : '') +
+          '<div class="fetch-models-row">' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-fetch-models="' + key + '">このAPIキーで使えるモデルを一覧取得</button>' +
+          '<span class="hint" data-fetch-status="' + key + '"></span>' +
+          '</div>' +
           '</div>';
       } else {
         inner += '<p class="hint">' + (p.note || '') + '</p>';
@@ -145,12 +149,46 @@
     // モデル候補チップ: タップでモデル名欄に反映
     config.addEventListener('click', function (e) {
       const chip = e.target.closest('[data-model-chip]');
-      if (!chip) return;
-      const input = config.querySelector('[data-model-for="' + chip.dataset.modelChip + '"]');
-      if (input) input.value = chip.dataset.modelId;
-      config.querySelectorAll('[data-model-chip="' + chip.dataset.modelChip + '"]').forEach(function (c) {
-        c.classList.toggle('active', c === chip);
-      });
+      if (chip) {
+        const input = config.querySelector('[data-model-for="' + chip.dataset.modelChip + '"]');
+        if (input) input.value = chip.dataset.modelId;
+        config.querySelectorAll('[data-model-chip="' + chip.dataset.modelChip + '"]').forEach(function (c) {
+          c.classList.toggle('active', c === chip);
+        });
+        return;
+      }
+
+      // 利用可能なモデル一覧をAPIから取得してチップを差し替え
+      const fetchBtn = e.target.closest('[data-fetch-models]');
+      if (fetchBtn) {
+        const key = fetchBtn.dataset.fetchModels;
+        const apiKeyInput = config.querySelector('[data-key-for="' + key + '"]');
+        const status = config.querySelector('[data-fetch-status="' + key + '"]');
+        const apiKey = apiKeyInput ? apiKeyInput.value.trim() : '';
+        if (!apiKey) {
+          status.textContent = '先にAPIキーを入力してください。';
+          return;
+        }
+        status.textContent = '取得中…';
+        fetchBtn.disabled = true;
+        AI.listModels(key, apiKey)
+          .then(function (models) {
+            fetchBtn.disabled = false;
+            if (!models.length) { status.textContent = 'モデルが見つかりませんでした。'; return; }
+            status.textContent = models.length + '件のモデルが利用可能です。タップで選択できます。';
+            const chips = config.querySelector('[data-chips-for="' + key + '"]');
+            if (chips) {
+              chips.innerHTML = models.slice(0, 24).map(function (id) {
+                return '<button type="button" class="model-chip" data-model-chip="' + key + '" data-model-id="' +
+                  escapeText(id) + '">' + escapeText(id) + '</button>';
+              }).join('');
+            }
+          })
+          .catch(function (err) {
+            fetchBtn.disabled = false;
+            status.textContent = '取得できませんでした: ' + (err.message || err);
+          });
+      }
     });
 
     $('#concurrency-input').value = state.settings.concurrency;
