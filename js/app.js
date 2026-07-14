@@ -15,6 +15,8 @@
       reportCap: 3000,
       charts: 2,
       sourceChars: 12000,
+      researchQueries: 3,
+      researchChars: 8000,
       instruction: '要点のみを簡潔にまとめてください。箇条書き中心で、全体で400字程度。最重要ポイント3つと結論を必ず含めてください。',
       synthInstruction: 'コンパクトで読みやすい資料（A4で2〜3ページ相当）にまとめてください。',
     },
@@ -26,6 +28,8 @@
       reportCap: 5000,
       charts: 4,
       sourceChars: 24000,
+      researchQueries: 5,
+      researchChars: 14000,
       instruction: '担当分野についてバランス良く分析してください。見出しと箇条書きを使い、全体で800〜1200字程度。根拠・示唆・推奨アクションを含めてください。',
       synthInstruction: '標準的なビジネスレポート（A4で5〜8ページ相当）としてまとめてください。表も適宜使ってください。',
     },
@@ -37,6 +41,8 @@
       reportCap: 8000,
       charts: 6,
       sourceChars: 48000,
+      researchQueries: 8,
+      researchChars: 24000,
       instruction: '担当分野について、極めて詳細かつ徹底的に分析してください。定量的な推定値（推定と明記）、複数の視点、具体例、反論の検討、詳細な推奨アクションを含め、見出し・表・箇条書きを駆使して2000字以上の深い報告をしてください。',
       synthInstruction: '非常に詳細で網羅的な本格レポートとしてまとめてください。各章を深く掘り下げ、表・比較・数値目安・ロードマップを盛り込み、そのまま経営会議に出せる完成度にしてください。',
     },
@@ -55,34 +61,51 @@
     startedAt: null,
     sourceDigest: '',
     sourceNames: [],
+    researchDigest: '',
+    researchCount: 0,
   };
 
-  /* ソース資料をプロンプトに埋め込むブロックを生成 */
+  /* ソース資料＋自動リサーチ結果をプロンプトに埋め込むブロックを生成 */
   function sourceBlock(maxChars) {
-    if (!state.sourceDigest) return '';
-    let digest = state.sourceDigest;
-    if (maxChars && digest.length > maxChars) digest = digest.slice(0, maxChars) + '\n…（以降省略）';
-    return '\n\n【ユーザー提供の参考資料】\n' +
-      '以下の資料を最優先の根拠として分析してください。資料に基づく記述には出典（資料番号・資料名）を明示し、' +
-      '資料にない事項を学習知識で補う場合はその旨を区別して書いてください。\n\n' + digest;
+    let block = '';
+    if (state.sourceDigest) {
+      let d = state.sourceDigest;
+      if (maxChars && d.length > maxChars) d = d.slice(0, maxChars) + '\n…（以降省略）';
+      block += '\n\n【ユーザー提供の参考資料】\n' +
+        '以下の資料を最優先の根拠として分析してください。資料に基づく記述には出典（資料番号・資料名）を明示し、' +
+        '資料にない事項を学習知識で補う場合はその旨を区別して書いてください。\n\n' + d;
+    }
+    if (state.researchDigest) {
+      block += '\n\n【自動Webリサーチ結果】\n' +
+        '以下はアプリが公開Webから自動収集した情報です。引用する際は出典として「自動調査N」とURLを明記してください。' +
+        '収集情報は不正確・古い可能性もあるため鵜呑みにせず、複数情報の突き合わせや妥当性の検討を行ってください。\n\n' +
+        state.researchDigest;
+    }
+    return block;
   }
 
+  function mergeSettings(s) {
+    const defaults = { provider: 'demo', concurrency: 4, notify: true, autoResearch: true, keys: {}, models: {} };
+    s = s || {};
+    return Object.assign(defaults, s, {
+      keys: Object.assign({}, s.keys),
+      models: Object.assign({}, s.models),
+    });
+  }
   function loadSettings() {
-    const defaults = { provider: 'demo', concurrency: 4, notify: true, keys: {}, models: {} };
     try {
       const raw = localStorage.getItem(SETTINGS_KEY);
-      if (raw) {
-        const s = JSON.parse(raw);
-        return Object.assign(defaults, s, {
-          keys: Object.assign({}, s.keys),
-          models: Object.assign({}, s.models),
-        });
-      }
+      if (raw) return mergeSettings(JSON.parse(raw));
     } catch (e) { /* 破損時はデフォルト */ }
-    return defaults;
+    return mergeSettings(null);
   }
   function saveSettings() {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
+    // ログイン中は暗号化して保存し、平文では保存しない
+    if (window.Auth && Auth.isLoggedIn()) {
+      Auth.saveSettings(state.settings).catch(function (e) { console.warn('設定の暗号化保存に失敗:', e); });
+    } else {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
+    }
   }
   function currentModel() {
     return state.settings.models[state.settings.provider] || AI.PROVIDERS[state.settings.provider].defaultModel;
@@ -340,7 +363,7 @@
       }
       return team;
     } catch (e) {
-      if (e.name === 'AbortError') throw e;
+      if (signal.aborted) throw e;
       console.warn('AIによるチーム編成に失敗したためローカル編成を使用します:', e);
       return Agents.buildLocalTeam(topic, count);
     }
@@ -357,14 +380,20 @@
       '担当領域: ' + agent.focus + '\n' +
       'あなたはチームの一員として、自分の担当領域に集中して分析報告を行います。' +
       '報告は日本語のMarkdown形式（見出し・箇条書き・必要に応じて表）で書いてください。絵文字や顔文字は一切使用しないでください。' +
-      (state.sourceDigest
-        ? 'ユーザー提供の参考資料が最重要の根拠です。資料の内容を精読し、担当領域に関係する事実・数値を積極的に引用してください。'
-        : 'Web検索はできないため、学習知識に基づく分析であることを踏まえ、具体的な数値は「推定」と明記してください。');
+      ((state.sourceDigest || state.researchDigest)
+        ? '提供された参考資料と自動Webリサーチ結果が最重要の根拠です。内容を精読し、担当領域に関係する事実・数値を出典付きで引用してください。'
+        : 'リアルタイムのWeb情報はないため、学習知識に基づく分析であることを踏まえ、具体的な数値は「推定」と明記してください。') +
+      '事実の正確性を最優先してください。確認できない情報を事実として断定しない・虚偽のデータや存在しない統計・架空の出典を作らないことは絶対のルールです。不明な点は「不明」と正直に書いてください。';
     const prompt =
       '【分析テーマ】\n' + state.topic +
       sourceBlock(lv.sourceChars) + '\n\n' +
       '【指示】\nあなたの担当領域「' + agent.role + '」の観点からこのテーマを分析し、報告してください。\n' +
-      lv.instruction + '\n\n最後に「**結論:**」として担当領域からの最重要メッセージを1〜2文で述べてください。';
+      lv.instruction + '\n\n最後に「**結論:**」として担当領域からの最重要メッセージを1〜2文で述べ、' +
+      'その後に必ず「**根拠・出典:**」セクションを設けて次を箇条書きで明記してください。\n' +
+      '- 参照した資料・自動調査（資料番号/自動調査番号・名称・URL）と、そこから得た情報\n' +
+      '- AIの学習知識に基づく部分（その旨を明記）\n' +
+      '- 推定・仮説の部分（推定の考え方も簡潔に）\n' +
+      '出典が確認できない数値は「推定」または「未確認」と必ず表記してください。';
 
     // レート制限(429)は待ち時間を読み取って粘り強くリトライする
     const maxAttempts = 5;
@@ -387,7 +416,7 @@
         updateAgentCard(agent);
         return;
       } catch (e) {
-        if (e.name === 'AbortError' || signal.aborted) {
+        if (signal.aborted) {
           agent.status = 'waiting';
           updateAgentCard(agent);
           throw e;
@@ -459,7 +488,8 @@
       'あなたは「' + state.synth.name + '」という名前の資料作成ディレクターAIです。' +
       '複数の専門エージェントの分析報告を統合し、1つの完成された市場分析資料（日本語・Markdown形式）を作成します。' +
       '見出し構造を整え、重複を排除し、矛盾があれば両論併記し、読み手がそのまま意思決定に使える品質に仕上げてください。' +
-      '絵文字や顔文字は一切使用しないでください。';
+      '絵文字や顔文字は一切使用しないでください。' +
+      'データの捏造・架空の出典の作成は絶対に禁止です。エージェント報告に無い数値を新たに作らないでください（報告内の数値の計算・集計は可）。';
     const prompt =
       '【分析テーマ】\n' + state.topic + '\n\n' +
       '【分析レベル】' + lv.name + '\n' +
@@ -471,8 +501,10 @@
       '3. 市場分析の本編（章立てして各報告の知見を統合）\n' +
       '4. 戦略提言・推奨アクション\n' +
       '5. リスクと留意点\n' +
-      '6. 付録: 分析チーム一覧' +
-      (state.sourceNames.length ? '・参考資料一覧' : '') + '\n\n' +
+      '6. 付録: 分析チーム一覧・出典一覧（参照した資料・自動調査・URL）' + '\n\n' +
+      '【正確性のルール】\n' +
+      '- 各章の重要な主張・数値には出典（資料番号・自動調査番号・URL・担当エージェント名、または「推定」）を付記する\n' +
+      '- 出典が確認できない情報は「推定」「未確認」と明記し、事実として断定しない\n\n' +
       (state.sourceNames.length
         ? '【ユーザー提供の参考資料一覧】\n' +
           state.sourceNames.map(function (n, i) { return (i + 1) + '. ' + n; }).join('\n') +
@@ -510,9 +542,9 @@
         });
         break;
       } catch (e) {
-        if (e.name === 'AbortError' || signal.aborted) throw e;
-        const is429 = e.status === 429 && !/limit: 0/i.test(e.message || '');
-        if (!is429 || attempt >= 4) throw e;
+        if (signal.aborted) throw e;
+        const retryable = (e.status === 429 && !/limit: 0/i.test(e.message || '')) || e.isTimeout;
+        if (!retryable || attempt >= 4) throw e;
         let wait = 12000 * attempt;
         const m = /retry in ([0-9.]+)\s*s/i.exec(e.message || '');
         if (m) wait = Math.max(wait, parseFloat(m[1]) * 1000 + 2000);
@@ -532,7 +564,8 @@
       case 'waiting': return '<span class="agent-status status-waiting">' + Icons.svg('clock') + '待機中</span>';
       case 'running': return '<span class="agent-status status-running"><span class="spinner"></span>分析中…</span>';
       case 'done':    return '<span class="agent-status status-done">' + Icons.svg('check') + '報告完了</span>';
-      case 'error':   return '<span class="agent-status status-error">' + Icons.svg('alert') + 'エラー</span>';
+      case 'error':   return '<span class="agent-status status-error">' + Icons.svg('alert') + 'エラー</span>' +
+        '<button type="button" class="retry-btn" data-retry="' + agent.id + '">' + Icons.svg('refresh') + '再実行</button>';
     }
     return '';
   }
@@ -661,6 +694,10 @@
     state.topic = topic;
     state.sourceDigest = Sources.buildDigest(LEVELS[state.level].sourceChars);
     state.sourceNames = Sources.listNames();
+    state.researchDigest = '';
+    state.researchCount = 0;
+    state.settings.autoResearch = $('#research-input').checked;
+    saveSettings();
     state.finalReport = '';
     state.abort = new AbortController();
     state.running = true;
@@ -682,8 +719,34 @@
     requestNotifyPermission();
 
     const signal = state.abort.signal;
+    $('#regen-bar').hidden = true;
     try {
+      // 0) 自律Webリサーチ（市場・競合・SNS/口コミの傾向を自動収集）
+      if (state.settings.autoResearch) {
+        setPhase('自律Webリサーチ中…（市場・競合・SNS/口コミを自動調査）', 4, 'globe');
+        try {
+          const research = await Research.run(
+            topic,
+            LEVELS[state.level].researchQueries,
+            LEVELS[state.level].researchChars,
+            signal,
+            function (done, total) {
+              $('#progress-text').textContent = '自動調査: ' + done + ' / ' + total + ' 件';
+            }
+          );
+          if (signal.aborted) return;
+          state.researchDigest = research.digest;
+          state.researchCount = research.results.length;
+          $('#run-topic').textContent += '｜自動調査 ' + state.researchCount + '件' +
+            (research.failed ? '（' + research.failed + '件取得失敗）' : '');
+        } catch (e) {
+          if (signal.aborted) return;
+          console.warn('自律リサーチに失敗しました（学習知識ベースで続行）:', e);
+        }
+      }
+
       // 1) チーム編成
+      setPhase('分析テーマに合わせてチームを編成中…', 8, 'compass');
       const team = await planTeam(topic, LEVELS[state.level].agents, signal);
       if (signal.aborted) return;
       state.agents = team.map(function (t, i) {
@@ -735,6 +798,48 @@
     $('#btn-stop').hidden = true;
     $('#btn-new').hidden = false;
     setPhase('停止しました', null, 'stop');
+  }
+
+  /* エラーになったエージェントを個別に再実行 */
+  async function retryAgent(id) {
+    if (id === 'synth') { regenerateReport(); return; }
+    const agent = state.agents.find(function (a) { return String(a.id) === String(id); });
+    if (!agent || agent.status === 'running') return;
+    if (!state.abort || state.abort.signal.aborted) state.abort = new AbortController();
+    const signal = state.abort.signal;
+    agent.error = '';
+    try {
+      await runAgent(agent, state.level, signal);
+    } catch (e) { /* 中断 */ }
+    updateProgress();
+    if (agent.status === 'done' && !state.running && state.synth) {
+      $('#regen-bar').hidden = false;
+      if (!state.finalReport) regenerateReport();
+    }
+  }
+
+  /* 最新のエージェント報告で資料を再生成 */
+  async function regenerateReport() {
+    if (state.running || (state.synth && state.synth.status === 'running')) return;
+    if (!state.abort || state.abort.signal.aborted) state.abort = new AbortController();
+    const signal = state.abort.signal;
+    $('#regen-bar').hidden = true;
+    try {
+      await synthesize(state.level, signal);
+      if (signal.aborted) return;
+      setPhase('資料を更新しました', 100, 'check');
+      showReport();
+      sendNotification('資料を更新しました', '最新のエージェント報告で資料を再生成しました。');
+    } catch (e) {
+      if (signal.aborted) return;
+      if (state.synth) {
+        state.synth.status = 'error';
+        state.synth.error = e.message || String(e);
+        updateSynthCard();
+      }
+      setPhase('資料の再生成でエラーが発生しました', null, 'alert');
+      $('#progress-text').textContent = e.message || String(e);
+    }
   }
 
   function resetToSetup() {
@@ -892,6 +997,118 @@
     });
   }
 
+  /* ============ アカウント（暗号化設定・端末間同期） ============ */
+  let authMode = 'login';
+
+  function updateAccountUI() {
+    const loggedIn = window.Auth && Auth.isLoggedIn();
+    $('#account-label').textContent = loggedIn ? Auth.currentId() : 'ログイン';
+    $('#account-logged-out').hidden = loggedIn;
+    $('#account-logged-in').hidden = !loggedIn;
+    if (loggedIn) $('#account-current').textContent = Auth.currentId();
+  }
+
+  function setAuthMode(mode) {
+    authMode = mode;
+    $('#tab-login').classList.toggle('active', mode === 'login');
+    $('#tab-register').classList.toggle('active', mode === 'register');
+    $('#auth-pw2-field').hidden = mode !== 'register';
+    $('#btn-auth-submit').textContent = mode === 'login' ? 'ログイン' : '登録してログイン';
+    $('#auth-error').hidden = true;
+  }
+
+  function authFail(msg) {
+    const el = $('#auth-error');
+    el.textContent = msg;
+    el.hidden = false;
+  }
+
+  async function afterAuthSuccess() {
+    // アカウントの設定を読み込み、平文設定は端末から削除（セキュリティ強化）
+    const loaded = await Auth.loadSettings();
+    state.settings = mergeSettings(loaded);
+    localStorage.removeItem(SETTINGS_KEY);
+    saveSettings();
+    renderSettings();
+    updateProviderBadge();
+    $('#research-input').checked = state.settings.autoResearch !== false;
+    updateAccountUI();
+    closeModal('account-modal');
+  }
+
+  async function submitAuth() {
+    const id = $('#auth-id').value;
+    const pw = $('#auth-pw').value;
+    try {
+      if (authMode === 'register') {
+        if (pw !== $('#auth-pw2').value) throw new Error('確認用パスワードが一致しません。');
+        // 端末に保存済みの設定（ゲスト設定）を初期値として引き継ぐ
+        await Auth.register(id, pw, state.settings);
+      } else {
+        await Auth.login(id, pw);
+      }
+      $('#auth-pw').value = '';
+      $('#auth-pw2').value = '';
+      await afterAuthSuccess();
+    } catch (e) {
+      authFail(e.message || String(e));
+    }
+  }
+
+  function doLogout() {
+    Auth.logout();
+    state.settings = mergeSettings(null); // 復号済み設定（APIキー含む）をメモリから破棄
+    renderSettings();
+    updateProviderBadge();
+    $('#research-input').checked = true;
+    updateAccountUI();
+  }
+
+  function setupAccountEvents() {
+    $('#btn-account').addEventListener('click', function () {
+      updateAccountUI();
+      setAuthMode('login');
+      openModal('account-modal');
+    });
+    $('#tab-login').addEventListener('click', function () { setAuthMode('login'); });
+    $('#tab-register').addEventListener('click', function () { setAuthMode('register'); });
+    $('#btn-auth-submit').addEventListener('click', submitAuth);
+    $('#auth-pw').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && authMode === 'login') submitAuth();
+    });
+    $('#btn-logout').addEventListener('click', doLogout);
+    $('#btn-sync-export').addEventListener('click', function () {
+      try {
+        downloadBlob(Auth.exportFile(), 'application/json;charset=utf-8', 'agent-market-lab-sync_' + fileStamp() + '.json');
+      } catch (e) { alert(e.message || String(e)); }
+    });
+    $('#btn-sync-import').addEventListener('click', function () { $('#sync-file-input').click(); });
+    $('#sync-file-input').addEventListener('change', function () {
+      const file = $('#sync-file-input').files[0];
+      $('#sync-file-input').value = '';
+      if (!file) return;
+      const fr = new FileReader();
+      fr.onload = function () {
+        try {
+          const id = Auth.importFile(String(fr.result));
+          authFail('同期ファイルを読み込みました。ID「' + id + '」とパスワードでログインしてください。');
+          $('#auth-id').value = id;
+          setAuthMode('login');
+          $('#auth-error').hidden = false;
+        } catch (e) {
+          authFail(e.message || String(e));
+        }
+      };
+      fr.readAsText(file);
+    });
+
+    // タブを開いている間のログイン状態を復元
+    Auth.resumeSession().then(function (id) {
+      if (!id) return;
+      return afterAuthSuccess();
+    }).catch(function (e) { console.warn(e); });
+  }
+
   /* ============ PWA: Service Worker登録 ============ */
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
@@ -910,7 +1127,27 @@
     renderSettings();
     updateProviderBadge();
     setupSourceEvents();
+    setupAccountEvents();
     registerServiceWorker();
+
+    // 自律リサーチのオン/オフ
+    $('#research-input').checked = state.settings.autoResearch !== false;
+    $('#research-input').addEventListener('change', function () {
+      state.settings.autoResearch = $('#research-input').checked;
+      saveSettings();
+    });
+
+    // エラーカードの「再実行」（カードクリックより先に捕捉）
+    function handleRetryClick(e) {
+      const btn = e.target.closest('.retry-btn');
+      if (!btn) return;
+      e.stopPropagation();
+      e.preventDefault();
+      retryAgent(btn.dataset.retry);
+    }
+    $('#agent-grid').addEventListener('click', handleRetryClick, true);
+    $('#synth-slot').addEventListener('click', handleRetryClick, true);
+    $('#btn-regen').addEventListener('click', regenerateReport);
 
     $('#btn-start').addEventListener('click', startAnalysis);
     $('#btn-stop').addEventListener('click', stopAnalysis);

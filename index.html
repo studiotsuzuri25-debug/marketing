@@ -37,6 +37,7 @@
   </div>
   <div class="header-actions">
     <span id="provider-badge" class="provider-badge"></span>
+    <button id="btn-account" class="btn btn-ghost btn-icon-text" title="アカウント"><span data-icon="user"></span><span class="btn-label" id="account-label">ログイン</span></button>
     <button id="btn-theme" class="btn btn-ghost btn-square" title="ダーク／ライト切替"></button>
     <button id="btn-settings" class="btn btn-ghost btn-icon-text" title="設定"><span data-icon="settings"></span><span class="btn-label">設定</span></button>
   </div>
@@ -65,6 +66,13 @@
       </div>
       <ul id="source-list" class="source-list"></ul>
       <p class="hint" id="url-proxy-note" hidden>※ CORS制限のあるサイトは公開リーダーサービス（r.jina.ai / allorigins.win）経由で取得されます。機密URLの追加は避けてください。</p>
+
+      <h3>自律リサーチ</h3>
+      <label class="check-row">
+        <input type="checkbox" id="research-input" checked>
+        <span class="check-icon" data-icon="globe"></span>
+        <span>エージェントが自律的にWeb調査を行う<span class="hint-inline">（市場統計・競合・ニュース・SNS/口コミの傾向を自動収集し、出典付きで分析の根拠にします。細かな指示は不要です）</span></span>
+      </label>
 
       <h3>分析レベル</h3>
       <div class="level-selector" id="level-selector">
@@ -118,6 +126,11 @@
     </div>
     <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
     <p id="progress-text" class="progress-text"></p>
+
+    <div id="regen-bar" class="regen-bar" hidden>
+      <span>エージェントの報告が更新されました。最新の報告で資料を作り直せます。</span>
+      <button id="btn-regen" class="btn btn-primary btn-icon-text"><span data-icon="refresh"></span><span class="btn-label">資料を再生成</span></button>
+    </div>
 
     <div id="synth-slot"></div>
     <div id="agent-grid" class="agent-grid"></div>
@@ -174,6 +187,46 @@
   </div>
 </div>
 
+<!-- ============ アカウントモーダル ============ -->
+<div id="account-modal" class="modal-backdrop" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="h-icon"><span data-icon="user"></span>アカウント</h2>
+      <button class="modal-close" data-close="account-modal" title="閉じる"><span data-icon="x"></span></button>
+    </div>
+    <div class="modal-body">
+      <div id="account-logged-out">
+        <div class="auth-tabs">
+          <button type="button" id="tab-login" class="auth-tab active">ログイン</button>
+          <button type="button" id="tab-register" class="auth-tab">新規登録</button>
+        </div>
+        <div class="field"><label>ID（3文字以上の半角英数字）</label><input type="text" id="auth-id" autocomplete="username" autocapitalize="off"></div>
+        <div class="field"><label>パスワード（8文字以上）</label><input type="password" id="auth-pw" autocomplete="current-password"></div>
+        <div class="field" id="auth-pw2-field" hidden><label>パスワード（確認）</label><input type="password" id="auth-pw2" autocomplete="new-password"></div>
+        <p class="warning" id="auth-error" hidden></p>
+        <button class="btn btn-primary" id="btn-auth-submit">ログイン</button>
+
+        <h3>別の端末から設定を移す</h3>
+        <p class="hint">もう一方の端末（ログイン中）で書き出した同期ファイルを読み込み、同じID・パスワードでログインすると、APIキーを含む同じ設定でこの端末でも使えます。</p>
+        <button class="btn btn-ghost btn-icon-text" id="btn-sync-import"><span data-icon="download"></span><span class="btn-label">同期ファイルを読み込む</span></button>
+        <input type="file" id="sync-file-input" accept=".json,application/json" hidden>
+      </div>
+
+      <div id="account-logged-in" hidden>
+        <p>ログイン中: <strong id="account-current"></strong></p>
+        <p class="hint">設定（APIキー含む）はパスワードから生成した鍵でAES-256暗号化され、この端末のブラウザ内にのみ保存されています。</p>
+        <div class="account-actions">
+          <button class="btn btn-ghost btn-icon-text" id="btn-sync-export"><span data-icon="download"></span><span class="btn-label">同期ファイルを書き出す</span></button>
+          <button class="btn btn-danger" id="btn-logout">ログアウト</button>
+        </div>
+        <p class="hint">同期ファイルは暗号化されたまま書き出されます。中身を復号するには同じID・パスワードでのログインが必要です。</p>
+      </div>
+
+      <p class="hint note h-icon"><span data-icon="lock"></span>パスワードはこの端末にも外部にも保存されません。忘れると設定を復元できないためご注意ください。</p>
+    </div>
+  </div>
+</div>
+
 <!-- ============ エージェント詳細モーダル ============ -->
 <div id="agent-modal" class="modal-backdrop" hidden>
   <div class="modal modal-wide">
@@ -193,6 +246,8 @@
 <script src="js/providers.js"></script>
 <script src="js/agents.js"></script>
 <script src="js/sources.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/research.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

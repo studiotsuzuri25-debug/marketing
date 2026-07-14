@@ -140,6 +140,7 @@ h1, h2, h3 { line-height: 1.35; font-weight: 600; }
   width: 38px; height: 38px; padding: 0;
   display: inline-flex; align-items: center; justify-content: center;
 }
+#btn-account .btn-label { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ================= Buttons ================= */
 .btn {
@@ -315,6 +316,25 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--g
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+.status-slot { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.retry-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--red-soft); border: 1px solid var(--red); color: var(--red);
+  border-radius: var(--radius-sm); padding: 4px 12px; font-size: 11px; cursor: pointer;
+  font-family: var(--mono); letter-spacing: .04em;
+  transition: background .15s;
+}
+.retry-btn:hover { background: var(--red); color: #fff; }
+.retry-btn .icon { width: 11px; height: 11px; }
+.synth-card .status-slot { align-items: flex-end; }
+
+.regen-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  border: 1px solid var(--accent-line); border-left: 2px solid var(--accent);
+  background: var(--accent-soft); border-radius: var(--radius);
+  padding: 10px 14px; margin-bottom: 14px; font-size: 13px;
+}
+
 .agent-card.running { border-color: var(--accent-line); }
 .agent-card.done { border-color: color-mix(in srgb, var(--green) 40%, transparent); }
 .agent-card.error { border-color: color-mix(in srgb, var(--red) 40%, transparent); }
@@ -468,6 +488,16 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--g
 .fetch-models-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
 .fetch-models-row .hint { margin: 0; font-size: 11.5px; }
 .btn-sm { padding: 6px 12px; font-size: 12px; }
+.auth-tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+.auth-tab {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--text-dim); padding: 8px 14px; font-size: 13.5px; cursor: pointer;
+  letter-spacing: .04em;
+}
+.auth-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.account-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
+#account-logged-out .btn-primary { width: 100%; margin-top: 4px; }
+
 .range-row { display: flex; align-items: center; gap: 14px; }
 .range-row input { flex: 1; accent-color: var(--accent); }
 #concurrency-value { font-family: var(--mono); color: var(--accent); }
@@ -510,6 +540,7 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--g
   .provider-badge { padding: 6px; }
   .brand h1 { font-size: 15px; }
   #btn-settings { white-space: nowrap; }
+  #btn-account .btn-label { display: none; }
   .agent-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .agent-card { padding: 12px 8px 12px; }
   .agent-avatar { width: 48px; height: 48px; }

@@ -281,13 +281,39 @@
    * @param {object} opts {provider, apiKey, model, system, prompt, maxTokens, signal, demo*}
    * @returns {Promise<string>}
    */
+  /* 親シグナルと結合したタイムアウト付きで実行（時間がかかりすぎる呼び出しを検知） */
+  async function withTimeout(opts, fn) {
+    const ctrl = new AbortController();
+    const timeoutMs = opts.timeoutMs || 240000;
+    let timedOut = false;
+    const timer = setTimeout(function () { timedOut = true; ctrl.abort(); }, timeoutMs);
+    const onAbort = function () { ctrl.abort(); };
+    if (opts.signal) {
+      if (opts.signal.aborted) { clearTimeout(timer); throw new DOMException('Aborted', 'AbortError'); }
+      opts.signal.addEventListener('abort', onAbort);
+    }
+    try {
+      return await fn(Object.assign({}, opts, { signal: ctrl.signal }));
+    } catch (e) {
+      if (timedOut) {
+        const err = new Error('AIの応答がタイムアウトしました（' + Math.round(timeoutMs / 1000) + '秒）。「再実行」で再試行してください。');
+        err.isTimeout = true;
+        throw err;
+      }
+      throw e;
+    } finally {
+      clearTimeout(timer);
+      if (opts.signal) opts.signal.removeEventListener('abort', onAbort);
+    }
+  }
+
   async function callAI(opts) {
     switch (opts.provider) {
       case 'demo':   return demoReport(opts);
-      case 'claude': return callClaude(opts);
-      case 'openai': return callOpenAICompat('https://api.openai.com/v1', opts, true);
-      case 'grok':   return callOpenAICompat('https://api.x.ai/v1', opts, false);
-      case 'gemini': return callGemini(opts);
+      case 'claude': return withTimeout(opts, callClaude);
+      case 'openai': return withTimeout(opts, function (o) { return callOpenAICompat('https://api.openai.com/v1', o, true); });
+      case 'grok':   return withTimeout(opts, function (o) { return callOpenAICompat('https://api.x.ai/v1', o, false); });
+      case 'gemini': return withTimeout(opts, callGemini);
       default: throw new Error('未対応のプロバイダです: ' + opts.provider);
     }
   }
