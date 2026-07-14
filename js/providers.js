@@ -41,8 +41,8 @@
       needsKey: true,
       defaultModel: 'gemini-2.5-flash',
       modelOptions: [
-        { id: 'gemini-2.5-pro', note: '高性能' },
-        { id: 'gemini-2.5-flash', note: '高速・低コスト' },
+        { id: 'gemini-2.5-flash', note: '無料枠あり（推奨）' },
+        { id: 'gemini-2.5-pro', note: '高性能（課金設定が必要）' },
       ],
       keyPlaceholder: 'AIza...',
       keyUrl: 'https://aistudio.google.com/apikey',
@@ -67,7 +67,17 @@
       const j = await res.json();
       detail = (j.error && (j.error.message || j.error.type)) || j.message || JSON.stringify(j).slice(0, 200);
     } catch (e) { /* ignore */ }
-    const err = new Error('APIエラー (' + res.status + ') ' + detail);
+    let hint = '';
+    if (res.status === 429) {
+      hint = /free_tier|limit: 0/i.test(detail)
+        ? '【対処】このモデルは無料枠では利用できない可能性があります。設定画面で無料枠対応のモデル（例: gemini-2.5-flash）に変更するか、AI事業者側で課金を有効にしてください。'
+        : '【対処】レート制限に達しました。設定画面で「同時実行数」を下げて再実行してください。';
+    } else if (res.status === 401 || res.status === 403) {
+      hint = '【対処】APIキーが無効か権限がありません。設定画面でキーを確認してください。';
+    } else if (res.status === 404) {
+      hint = '【対処】モデル名が正しくない可能性があります。設定画面のモデル候補から選び直してください。';
+    }
+    const err = new Error('APIエラー (' + res.status + ') ' + (hint ? hint + '\n詳細: ' : '') + detail);
     err.status = res.status;
     return err;
   }
