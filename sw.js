@@ -1,7 +1,7 @@
 /* Service Worker — アプリシェルのキャッシュと通知クリック処理 */
 'use strict';
 
-const CACHE_NAME = 'aml-cache-v12';
+const CACHE_NAME = 'aml-cache-v13';
 const APP_SHELL = [
   './',
   'index.html',
@@ -12,6 +12,8 @@ const APP_SHELL = [
   'js/providers.js',
   'js/agents.js',
   'js/sources.js',
+  'js/firebase-config.js',
+  'js/cloud.js',
   'js/auth.js',
   'js/research.js',
   'js/history.js',

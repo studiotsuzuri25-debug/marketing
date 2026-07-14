@@ -224,10 +224,12 @@
         <p class="warning" id="auth-error" hidden></p>
         <button class="btn btn-primary" id="btn-auth-submit">ログイン</button>
 
-        <h3>別の端末から設定を移す</h3>
-        <p class="hint">もう一方の端末（ログイン中）で書き出した同期ファイルを読み込み、同じID・パスワードでログインすると、APIキーを含む同じ設定でこの端末でも使えます。</p>
-        <button class="btn btn-ghost btn-icon-text" id="btn-sync-import"><span data-icon="download"></span><span class="btn-label">同期ファイルを読み込む</span></button>
-        <input type="file" id="sync-file-input" accept=".json,application/json" hidden>
+        <div id="sync-import-block">
+          <h3>別の端末から設定を移す</h3>
+          <p class="hint">もう一方の端末（ログイン中）で書き出した同期ファイルを読み込み、同じID・パスワードでログインすると、APIキーを含む同じ設定でこの端末でも使えます。</p>
+          <button class="btn btn-ghost btn-icon-text" id="btn-sync-import"><span data-icon="download"></span><span class="btn-label">同期ファイルを読み込む</span></button>
+          <input type="file" id="sync-file-input" accept=".json,application/json" hidden>
+        </div>
       </div>
 
       <div id="account-logged-in" hidden>
@@ -240,7 +242,8 @@
         <p class="hint">同期ファイルは暗号化されたまま書き出されます。中身を復号するには同じID・パスワードでのログインが必要です。</p>
       </div>
 
-      <p class="hint note h-icon"><span data-icon="lock"></span>パスワードはこの端末にも外部にも保存されません。忘れると設定を復元できないためご注意ください。</p>
+      <p class="hint note" id="cloud-status"></p>
+      <p class="hint note h-icon"><span data-icon="lock"></span>設定（APIキー含む）は端末側で暗号化されてから保存されます。パスワードそのものは保存・送信されず、忘れると設定を復元できないためご注意ください。</p>
     </div>
   </div>
 </div>
@@ -264,6 +267,8 @@
 <script src="js/providers.js"></script>
 <script src="js/agents.js"></script>
 <script src="js/sources.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/cloud.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/research.js"></script>
 <script src="js/history.js"></script>

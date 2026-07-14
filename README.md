@@ -79,6 +79,40 @@ sw.js             Service Worker（オフラインキャッシュ・通知）
 manifest.webmanifest / icons/   PWAマニフェストとアプリアイコン
 ```
 
+## クラウド同期のセットアップ（どの端末からでも同じアカウントで利用）
+
+初期状態のアカウントは端末内保存（＋同期ファイルでの移行）ですが、**Firebase（無料）を設定すると、同じID・パスワードでどの端末のブラウザからでも利用できる**ようになります。設定は10分程度・コードの知識は不要です。
+
+### 手順
+
+1. https://console.firebase.google.com/ をGoogleアカウントで開き、「プロジェクトを作成」（名前は任意。Googleアナリティクスは無効でOK）
+2. 左メニュー「構築 → Authentication」→「始める」→ ログイン方法で **「メール / パスワード」を有効化**して保存
+3. 左メニュー「構築 → Firestore Database」→「データベースを作成」→ ロケーションは asia-northeast1（東京）→ **本番環境モード**で作成
+4. Firestoreの「ルール」タブを開き、以下に置き換えて「公開」：
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /users/{uid} {
+         allow read, write: if request.auth != null && request.auth.uid == uid;
+       }
+     }
+   }
+   ```
+5. プロジェクトの設定（歯車アイコン）→「マイアプリ」→ Webアプリ（`</>`）を追加 → 表示される `firebaseConfig = { ... }` をコピー
+6. このリポジトリの `js/firebase-config.js` を開き、`window.FIREBASE_CONFIG = null;` をコピーした内容で置き換えてコミット：
+   ```js
+   window.FIREBASE_CONFIG = { apiKey: "...", authDomain: "...", projectId: "...", ... };
+   ```
+7. GitHub Pagesに反映されたら完了。アプリの「ログイン」→ 新規登録したアカウントが全端末で共通になります
+
+### セキュリティについて
+
+- パスワードの検証はFirebase Authenticationが行い、パスワード自体は保存されません
+- 設定（APIキー含む）は**端末側でAES-256暗号化してから**クラウドに保存されるため、Firebase（Google）側でも中身は読めません
+- Firestoreのルールにより、各ユーザーは自分のデータにしかアクセスできません
+- `firebaseConfig` は公開されても問題ない識別子です（秘密鍵ではありません）
+
 ## アプリとしてインストール（PWA）
 
 HTTPSで公開された環境（GitHub Pages等）または localhost で開くと、アプリとしてインストールできます。

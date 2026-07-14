@@ -693,6 +693,14 @@
       warning.hidden = false;
       return;
     }
+    if (window.Auth && Auth.isCloud() && !Auth.isLoggedIn()) {
+      warning.textContent = 'このアプリはアカウント制です。右上の「ログイン」からログイン（または新規登録）してください。';
+      warning.hidden = false;
+      updateAccountUI();
+      setAuthMode('login');
+      openModal('account-modal');
+      return;
+    }
     if (Sources.loadingCount() > 0) {
       warning.textContent = '参考資料の取り込みが完了していません。完了するまで少しお待ちください（不要な資料は削除ボタンで外せます）。';
       warning.hidden = false;
@@ -1116,10 +1124,17 @@
 
   function updateAccountUI() {
     const loggedIn = window.Auth && Auth.isLoggedIn();
+    const cloud = window.Auth && Auth.isCloud();
     $('#account-label').textContent = loggedIn ? Auth.currentId() : 'ログイン';
     $('#account-logged-out').hidden = loggedIn;
     $('#account-logged-in').hidden = !loggedIn;
     if (loggedIn) $('#account-current').textContent = Auth.currentId();
+    // クラウド有効時は同期ファイルのUIは不要
+    $('#sync-import-block').hidden = cloud;
+    $('#btn-sync-export').hidden = cloud;
+    $('#cloud-status').innerHTML = cloud
+      ? Icons.svg('globe') + ' クラウド同期: <strong>有効</strong> — 同じID・パスワードでどの端末（PC・タブレット・スマホのブラウザ）からでも利用できます。'
+      : Icons.svg('lock') + ' クラウド同期: 無効 — アカウントはこの端末内に保存されます（別端末へは同期ファイルで移行）。';
   }
 
   function setAuthMode(mode) {
@@ -1166,6 +1181,7 @@
       await afterAuthSuccess();
     } catch (e) {
       authFail(e.message || String(e));
+      updateAccountUI();
     }
   }
 

@@ -14,6 +14,16 @@
   let currentId = null;
   let currentKey = null; // CryptoKey（メモリ上のみ）
 
+  function cloudEnabled() {
+    return !!(window.Cloud && window.Cloud.isConfigured());
+  }
+
+  /* クラウドモードでは全端末で同じ鍵を導出できるよう、IDから決定的にソルトを生成 */
+  async function saltFromId(id) {
+    const digest = await crypto.subtle.digest('SHA-256', enc.encode('aml-cloud-salt-v1:' + id));
+    return new Uint8Array(digest).slice(0, 16);
+  }
+
   const enc = new TextEncoder();
   const dec = new TextDecoder();
 
@@ -72,6 +82,18 @@
   async function register(id, password, initialSettings) {
     id = normalizeId(id);
     validate(id, password);
+
+    if (cloudEnabled()) {
+      await window.Cloud.register(id, password); // 既存IDはここで弾かれる
+      const key = await deriveKey(password, await saltFromId(id), true);
+      currentId = id;
+      currentKey = key;
+      const data = await encrypt(key, JSON.stringify(initialSettings || {}));
+      await window.Cloud.saveBlob({ v: 1, data: data });
+      await persistSession(password, id);
+      return id;
+    }
+
     const store = loadStore();
     if (store[id]) throw new Error('このIDはこの端末で既に登録されています。ログインしてください。');
     const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -88,6 +110,16 @@
 
   async function login(id, password) {
     id = normalizeId(id);
+
+    if (cloudEnabled()) {
+      await window.Cloud.login(id, password); // ID/パスワードの検証はFirebase側で実施
+      const key = await deriveKey(password, await saltFromId(id), true);
+      currentId = id;
+      currentKey = key;
+      await persistSession(password, id);
+      return id;
+    }
+
     const store = loadStore();
     const rec = store[id];
     if (!rec) throw new Error('このIDはこの端末に見つかりません。新規登録するか、同期ファイルを読み込んでください。');
@@ -117,8 +149,13 @@
       const raw = sessionStorage.getItem(SESSION_KEY);
       if (!raw) return null;
       const s = JSON.parse(raw);
-      const store = loadStore();
-      if (!store[s.id]) return null;
+      if (cloudEnabled()) {
+        const user = await window.Cloud.waitUser();
+        if (!user) { sessionStorage.removeItem(SESSION_KEY); return null; }
+      } else {
+        const store = loadStore();
+        if (!store[s.id]) return null;
+      }
       currentKey = await crypto.subtle.importKey('jwk', s.jwk, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
       currentId = s.id;
       return s.id;
@@ -131,10 +168,16 @@
     currentId = null;
     currentKey = null;
     sessionStorage.removeItem(SESSION_KEY);
+    if (cloudEnabled()) window.Cloud.logout();
   }
 
   async function saveSettings(settings) {
     if (!currentId || !currentKey) throw new Error('ログインしていません。');
+    if (cloudEnabled()) {
+      const data = await encrypt(currentKey, JSON.stringify(settings));
+      await window.Cloud.saveBlob({ v: 1, data: data });
+      return;
+    }
     const store = loadStore();
     const rec = store[currentId];
     if (!rec) throw new Error('アカウントが見つかりません。');
@@ -145,6 +188,15 @@
 
   async function loadSettings() {
     if (!currentId || !currentKey) return null;
+    if (cloudEnabled()) {
+      const box = await window.Cloud.loadBlob();
+      if (!box || !box.data) return null;
+      try {
+        return JSON.parse(await decrypt(currentKey, box.data));
+      } catch (e) {
+        throw new Error('クラウド上の設定を復号できませんでした。パスワードが変更された可能性があります。');
+      }
+    }
     const store = loadStore();
     const rec = store[currentId];
     if (!rec) return null;
@@ -175,6 +227,7 @@
   }
 
   window.Auth = {
+    isCloud: cloudEnabled,
     register: register,
     login: login,
     logout: logout,
