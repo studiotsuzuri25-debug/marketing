@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Market Lab — マルチAIエージェント市場分析</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand">
+    <span class="brand-icon">🤖</span>
+    <div>
+      <h1>Agent Market Lab</h1>
+      <p>マルチAIエージェント市場分析ツール</p>
+    </div>
+  </div>
+  <div class="header-actions">
+    <span id="provider-badge" class="provider-badge">デモモード</span>
+    <button id="btn-settings" class="btn btn-ghost" title="設定">⚙️ 設定</button>
+  </div>
+</header>
+
+<main>
+  <!-- ============ 入力画面 ============ -->
+  <section id="setup-view" class="view">
+    <div class="setup-card">
+      <h2>分析したい内容を入力してください</h2>
+      <p class="hint">例：「国内のオーガニックコスメ市場に新ブランドで参入したい。20〜30代女性向け。市場性と参入戦略を分析してほしい」</p>
+      <textarea id="topic-input" rows="5" placeholder="分析したい市場・商品・サービス・課題などを自由に記入してください…"></textarea>
+
+      <h3>分析レベル</h3>
+      <div class="level-selector" id="level-selector">
+        <label class="level-card">
+          <input type="radio" name="level" value="1">
+          <div class="level-body">
+            <span class="level-icon">⚡</span>
+            <strong>Lv.1 クイック</strong>
+            <span class="level-desc">8体のエージェントが要点を素早く分析。まず全体像を掴みたいときに。</span>
+            <span class="level-meta">約8エージェント・短時間</span>
+          </div>
+        </label>
+        <label class="level-card">
+          <input type="radio" name="level" value="2" checked>
+          <div class="level-body">
+            <span class="level-icon">🔍</span>
+            <strong>Lv.2 スタンダード</strong>
+            <span class="level-desc">16体のエージェントがバランスよく多角的に分析。通常はこちら。</span>
+            <span class="level-meta">約16エージェント・標準</span>
+          </div>
+        </label>
+        <label class="level-card">
+          <input type="radio" name="level" value="3">
+          <div class="level-body">
+            <span class="level-icon">🧠</span>
+            <strong>Lv.3 ディープ</strong>
+            <span class="level-desc">28体のエージェントがあらゆる角度から極めて詳細に徹底分析。</span>
+            <span class="level-meta">約28エージェント・最高精度</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="setup-footer">
+        <p id="setup-warning" class="warning" hidden></p>
+        <button id="btn-start" class="btn btn-primary btn-lg">🚀 エージェントチームを起動する</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 実行画面 ============ -->
+  <section id="run-view" class="view" hidden>
+    <div class="run-header">
+      <div class="run-info">
+        <h2 id="run-phase">チームを編成中…</h2>
+        <p id="run-topic" class="run-topic"></p>
+      </div>
+      <div class="run-actions">
+        <button id="btn-stop" class="btn btn-danger">⏹ 停止</button>
+        <button id="btn-new" class="btn btn-ghost" hidden>＋ 新しい分析</button>
+      </div>
+    </div>
+    <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
+    <p id="progress-text" class="progress-text"></p>
+
+    <div id="synth-slot"></div>
+    <div id="agent-grid" class="agent-grid"></div>
+
+    <!-- ============ 完成資料 ============ -->
+    <section id="report-section" class="report-section" hidden>
+      <div class="report-toolbar">
+        <h2>📄 完成資料</h2>
+        <div class="report-buttons">
+          <button class="btn btn-primary" id="btn-dl-pdf">🖨 PDF</button>
+          <button class="btn btn-ghost" id="btn-dl-html">HTML</button>
+          <button class="btn btn-ghost" id="btn-dl-md">Markdown</button>
+          <button class="btn btn-ghost" id="btn-dl-txt">テキスト</button>
+        </div>
+      </div>
+      <article id="report-content" class="report-content markdown-body"></article>
+    </section>
+  </section>
+</main>
+
+<!-- ============ 設定モーダル ============ -->
+<div id="settings-modal" class="modal-backdrop" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2>⚙️ 設定</h2>
+      <button class="modal-close" data-close="settings-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <h3>使用するAI</h3>
+      <div class="provider-list" id="provider-list"><!-- JSで生成 --></div>
+
+      <div id="provider-config"><!-- JSで生成（APIキー・モデル入力） --></div>
+
+      <h3>同時実行数</h3>
+      <p class="hint">一度に並列でAPIを呼び出すエージェント数。レート制限エラーが出る場合は減らしてください。</p>
+      <div class="range-row">
+        <input type="range" id="concurrency-input" min="1" max="10" value="4">
+        <span id="concurrency-value">4</span>
+      </div>
+
+      <p class="hint note">🔒 APIキーはこのブラウザの localStorage にのみ保存され、選択したAI事業者以外へ送信されることはありません。</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" id="btn-save-settings">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ エージェント詳細モーダル ============ -->
+<div id="agent-modal" class="modal-backdrop" hidden>
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <div class="agent-modal-profile" id="agent-modal-profile"></div>
+      <button class="modal-close" data-close="agent-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <article id="agent-modal-report" class="markdown-body"></article>
+    </div>
+  </div>
+</div>
+
+<script src="js/markdown.js"></script>
+<script src="js/providers.js"></script>
+<script src="js/agents.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
