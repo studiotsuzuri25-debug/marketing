@@ -11,8 +11,9 @@
       name: 'Lv.1 クイック',
       agents: 8,
       agentTokens: 1024,
-      synthTokens: 3000,
+      synthTokens: 4500,
       reportCap: 3000,
+      charts: 2,
       sourceChars: 12000,
       instruction: '要点のみを簡潔にまとめてください。箇条書き中心で、全体で400字程度。最重要ポイント3つと結論を必ず含めてください。',
       synthInstruction: 'コンパクトで読みやすい資料（A4で2〜3ページ相当）にまとめてください。',
@@ -21,8 +22,9 @@
       name: 'Lv.2 スタンダード',
       agents: 16,
       agentTokens: 2048,
-      synthTokens: 6000,
+      synthTokens: 8192,
       reportCap: 5000,
+      charts: 4,
       sourceChars: 24000,
       instruction: '担当分野についてバランス良く分析してください。見出しと箇条書きを使い、全体で800〜1200字程度。根拠・示唆・推奨アクションを含めてください。',
       synthInstruction: '標準的なビジネスレポート（A4で5〜8ページ相当）としてまとめてください。表も適宜使ってください。',
@@ -33,6 +35,7 @@
       agentTokens: 4096,
       synthTokens: 8192,
       reportCap: 8000,
+      charts: 6,
       sourceChars: 48000,
       instruction: '担当分野について、極めて詳細かつ徹底的に分析してください。定量的な推定値（推定と明記）、複数の視点、具体例、反論の検討、詳細な推奨アクションを含め、見出し・表・箇条書きを駆使して2000字以上の深い報告をしてください。',
       synthInstruction: '非常に詳細で網羅的な本格レポートとしてまとめてください。各章を深く掘り下げ、表・比較・数値目安・ロードマップを盛り込み、そのまま経営会議に出せる完成度にしてください。',
@@ -464,7 +467,7 @@
       lv.synthInstruction + '\n\n' +
       '資料の構成:\n' +
       '1. タイトル（# 見出し）と作成概要\n' +
-      '2. エグゼクティブサマリー\n' +
+      '2. エグゼクティブサマリー（冒頭に必ずKPIカードを置く）\n' +
       '3. 市場分析の本編（章立てして各報告の知見を統合）\n' +
       '4. 戦略提言・推奨アクション\n' +
       '5. リスクと留意点\n' +
@@ -475,6 +478,18 @@
           state.sourceNames.map(function (n, i) { return (i + 1) + '. ' + n; }).join('\n') +
           '\n（各エージェントはこれらの資料を根拠に分析しています。資料に基づく記述の出典表記を維持してください）\n\n'
         : '') +
+      '【ビジュアル化の指示（最重要）】\n' +
+      '文章だけの資料にせず、数値をグラフ・表・KPIカードで視覚化してください。以下の専用記法はそのまま図表としてレンダリングされます。\n' +
+      '- 重要指標カード（エグゼクティブサマリー冒頭に必ず1つ）:\n' +
+      '```kpi\n{"items":[{"label":"市場規模(2026年・推定)","value":"3,700億円","note":"前年比+5%"},{"label":"想定参入障壁","value":"中程度","note":"5段階中3"}]}\n```\n' +
+      '- グラフ（1コードブロックに1つのJSON。typeは bar / hbar / line / pie / donut / radar）:\n' +
+      '```chart\n{"type":"bar","title":"市場規模の推移（推定）","unit":"億円","labels":["2023","2024","2025","2026"],"series":[{"name":"市場規模","data":[3200,3350,3520,3700]}]}\n```\n' +
+      '```chart\n{"type":"radar","title":"競合ポジショニング比較（推定）","labels":["価格","品質","認知度","チャネル","独自性"],"series":[{"name":"自社想定","data":[3,4,2,2,5]},{"name":"競合A","data":[4,4,5,5,3]}]}\n```\n' +
+      'ルール:\n' +
+      '- グラフを最低' + lv.charts + '個、内容に合わせて異なるtypeを使い分けて本文の適切な位置に埋め込む（推移=line/bar、構成比=pie/donut、ランキング=hbar、多軸比較=radar）\n' +
+      '- 数値は報告・資料の値を使い、無い場合は妥当な推定値を入れてタイトルか注記に「推定」と明記する\n' +
+      '- JSONは厳密に有効な形式で書く（コメント・末尾カンマ・全角引用符は禁止）\n' +
+      '- Markdownの表も適宜併用する\n\n' +
       '【エージェントからの報告】\n\n' + reports;
 
     let text = null;
@@ -770,6 +785,24 @@
       'code{background:#eef1f6;border-radius:5px;padding:1px 6px}' +
       'pre{background:#eef1f6;border-radius:8px;padding:14px;overflow-x:auto}' +
       'hr{border:none;border-top:1px solid #b9c2d0;margin:24px 0}' +
+      '.table-scroll{overflow-x:auto;max-width:100%}' +
+      '.chart-figure{margin:20px 0;padding:16px 14px 12px;border:1px solid #e3e8ef;border-radius:6px;background:#fdfdfe;page-break-inside:avoid}' +
+      '.chart-figure figcaption{font-size:13.5px;font-weight:700;color:#2b3546;margin-bottom:10px}' +
+      '.chart-figure svg{width:100%;height:auto;display:block}' +
+      '.chart-unit{font-size:11px;font-weight:400;color:#7b8698;margin-left:8px}' +
+      '.chart-legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px}' +
+      '.chart-legend-col{flex-direction:column;gap:6px;margin-top:0}' +
+      '.chart-legend-item{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#3a4454}' +
+      '.chart-swatch{width:10px;height:10px;border-radius:2px;flex-shrink:0}' +
+      '.chart-pie-wrap{display:flex;align-items:center;gap:22px;flex-wrap:wrap}' +
+      '.chart-pie-wrap svg{width:190px;flex-shrink:0}' +
+      '.chart-radar-wrap{display:flex;justify-content:center}' +
+      '.chart-radar-wrap svg{max-width:340px}' +
+      '.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:18px 0}' +
+      '.kpi-card{border:1px solid #e3e8ef;border-left:3px solid #2563eb;border-radius:6px;padding:12px 14px;background:#fdfdfe}' +
+      '.kpi-label{font-size:11px;color:#7b8698}' +
+      '.kpi-value{font-size:21px;font-weight:700;color:#1c2740;line-height:1.3;margin-top:2px}' +
+      '.kpi-note{font-size:11px;color:#5d6b80;margin-top:2px}' +
       'footer{margin-top:48px;font-size:12px;color:#8a94a6;border-top:1px solid #e2e6ee;padding-top:12px}' +
       '@media print{body{padding:0}}' +
       '</style></head><body>' + body +

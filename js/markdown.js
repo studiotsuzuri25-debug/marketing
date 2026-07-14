@@ -50,14 +50,20 @@
     while (i < lines.length) {
       const line = lines[i];
 
-      // コードブロック
+      // コードブロック（```chart / ```kpi はグラフ・KPIカードとして描画）
       if (/^\s*```/.test(line)) {
         flushAll();
+        const lang = (line.match(/^\s*```\s*(\w+)/) || [])[1] || '';
         const buf = [];
         i++;
         while (i < lines.length && !/^\s*```/.test(lines[i])) { buf.push(lines[i]); i++; }
         i++; // 終了フェンスを消費
-        html.push('<pre><code>' + escapeHtml(buf.join('\n')) + '</code></pre>');
+        const code = buf.join('\n');
+        let rendered = null;
+        if (window.Charts && (lang === 'chart' || lang === 'kpi')) {
+          rendered = window.Charts.fromCode(lang, code.trim());
+        }
+        html.push(rendered != null ? rendered : '<pre><code>' + escapeHtml(code) + '</code></pre>');
         continue;
       }
 
@@ -148,6 +154,12 @@
   // プレーンテキスト化（.txt ダウンロード用）
   function mdToText(md) {
     return (md || '')
+      .replace(/```(chart|kpi)\s*\n([\s\S]*?)```/g, function (m, lang, code) {
+        try {
+          const spec = JSON.parse(code.trim());
+          return '【' + (lang === 'kpi' ? '重要指標' : 'グラフ') + (spec.title ? ': ' + spec.title : '') + '】';
+        } catch (e) { return ''; }
+      })
       .replace(/```[\s\S]*?```/g, function (m) { return m.replace(/```\w*\n?/g, ''); })
       .replace(/^#{1,6}\s+/gm, '')
       .replace(/\*\*([^*]+)\*\*/g, '$1')
