@@ -325,7 +325,8 @@
       '【指示】\nあなたの担当領域「' + agent.role + '」の観点からこのテーマを分析し、報告してください。\n' +
       lv.instruction + '\n\n最後に「**結論:**」として担当領域からの最重要メッセージを1〜2文で述べてください。';
 
-    const maxAttempts = 2;
+    // レート制限(429)は待ち時間を読み取って粘り強くリトライする
+    const maxAttempts = 5;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         const text = await AI.call({
@@ -350,13 +351,23 @@
           updateAgentCard(agent);
           throw e;
         }
-        if (attempt < maxAttempts) {
-          await sleep(2000 + Math.random() * 2000, signal);
-        } else {
+        const is429 = e.status === 429;
+        // 無料枠で利用不可(limit: 0)のモデルはリトライしても無駄なので即エラー表示
+        const isHardQuota = is429 && /limit: 0/i.test(e.message || '');
+        const lastAttempt = attempt >= (is429 && !isHardQuota ? maxAttempts : 2);
+        if (isHardQuota || lastAttempt) {
           agent.status = 'error';
           agent.error = e.message || String(e);
           updateAgentCard(agent);
+          return;
         }
+        let wait = 2000 * attempt + Math.random() * 2000;
+        if (is429) {
+          wait = Math.max(wait, 10000 * attempt); // レート制限は長めに待つ
+          const m = /retry in ([0-9.]+)\s*s/i.exec(e.message || '');
+          if (m) wait = Math.max(wait, parseFloat(m[1]) * 1000 + 2000);
+        }
+        await sleep(wait, signal);
       }
     }
   }
@@ -428,19 +439,33 @@
         : '') +
       '【エージェントからの報告】\n\n' + reports;
 
-    const text = await AI.call({
-      provider: state.settings.provider,
-      apiKey: currentKey(),
-      model: currentModel(),
-      system: system,
-      prompt: prompt,
-      maxTokens: lv.synthTokens,
-      signal: signal,
-      demoKind: 'synthesis',
-      demoTopic: state.topic,
-      demoCount: done.length,
-      demoSourceCount: state.sourceNames.length,
-    });
+    let text = null;
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      try {
+        text = await AI.call({
+          provider: state.settings.provider,
+          apiKey: currentKey(),
+          model: currentModel(),
+          system: system,
+          prompt: prompt,
+          maxTokens: lv.synthTokens,
+          signal: signal,
+          demoKind: 'synthesis',
+          demoTopic: state.topic,
+          demoCount: done.length,
+          demoSourceCount: state.sourceNames.length,
+        });
+        break;
+      } catch (e) {
+        if (e.name === 'AbortError' || signal.aborted) throw e;
+        const is429 = e.status === 429 && !/limit: 0/i.test(e.message || '');
+        if (!is429 || attempt >= 4) throw e;
+        let wait = 12000 * attempt;
+        const m = /retry in ([0-9.]+)\s*s/i.exec(e.message || '');
+        if (m) wait = Math.max(wait, parseFloat(m[1]) * 1000 + 2000);
+        await sleep(wait, signal);
+      }
+    }
 
     state.finalReport = text.trim();
     state.synth.status = 'done';
