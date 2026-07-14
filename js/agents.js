@@ -44,14 +44,18 @@
     'カエデ', 'トワ', 'スイ', 'ナギ', 'フウカ',
   ];
 
-  /* アバター用グラデーション配色 */
+  /* アバター背景のグラデーション配色 */
   const GRADIENTS = [
-    ['#ff9a9e', '#fad0c4'], ['#a18cd1', '#fbc2eb'], ['#fbc2eb', '#a6c1ee'],
-    ['#84fab0', '#8fd3f4'], ['#fccb90', '#d57eeb'], ['#e0c3fc', '#8ec5fc'],
-    ['#f093fb', '#f5576c'], ['#4facfe', '#00f2fe'], ['#43e97b', '#38f9d7'],
-    ['#fa709a', '#fee140'], ['#30cfd0', '#330867'], ['#667eea', '#764ba2'],
-    ['#2af598', '#009efd'], ['#f78ca0', '#fe9a8b'], ['#5ee7df', '#b490ca'],
+    ['#ffd9a8', '#ffb0b0'], ['#c9b8f0', '#f7c8e8'], ['#f7c8e8', '#b8ccf0'],
+    ['#b8ecc9', '#b0dcf4'], ['#ffd9b0', '#e4b8ec'], ['#e8d5fa', '#bcd4fc'],
+    ['#f9c2f2', '#f9a8b0'], ['#a8d4fc', '#a0ecf4'], ['#b0eccb', '#a8f4e0'],
+    ['#f9b8c8', '#fce9a8'], ['#a8dcdc', '#b8c0ec'], ['#c0c8f4', '#d4b8e8'],
   ];
+
+  /* 顔イラスト用パーツ配色（多様な人種・年齢を表現） */
+  const SKIN_TONES = ['#ffdfc4', '#f5cba7', '#e8b184', '#c68863', '#a5673f', '#8d5524', '#6f4423'];
+  const HAIR_COLORS = ['#2b2118', '#453022', '#5f402a', '#8a5a33', '#c98e4a', '#e3c16f', '#a44e35', '#555b63', '#9aa2ab', '#e9e6df'];
+  const CLOTH_COLORS = ['#4f8cff', '#e46a6a', '#3ba57e', '#8a6fd8', '#e29a3d', '#4aa8c0', '#c95f9c', '#5f6f8a', '#7a9e4f', '#3d5a80'];
 
   function hashCode(s) {
     let h = 0;
@@ -59,23 +63,163 @@
     return Math.abs(h);
   }
 
-  /* SNS風プロフィールアイコン（グラデーション円＋白のピクトグラム、決定的に生成） */
-  function avatarSVG(seed, icon) {
-    const h = hashCode(seed);
-    const g = GRADIENTS[h % GRADIENTS.length];
-    const gid = 'g' + h;
-    const cx1 = 12 + (h % 40);
-    const cy1 = 10 + ((h >> 3) % 20);
+  function shade(hex, f) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = Math.max(0, Math.min(255, Math.round(((n >> 16) & 255) * f)));
+    const g = Math.max(0, Math.min(255, Math.round(((n >> 8) & 255) * f)));
+    const b = Math.max(0, Math.min(255, Math.round((n & 255) * f)));
+    return 'rgb(' + r + ',' + g + ',' + b + ')';
+  }
+
+  /*
+   * SNS風プロフィールアイコン — 人の顔のフラットイラストを決定的に生成。
+   * 肌の色7種 × 髪型9種 × 髪色10種 × メガネ/ひげ/年齢表現などの組み合わせで
+   * 老若男女・さまざまな人種のバリエーションを作る。
+   */
+  function avatarSVG(seed) {
+    const h1 = hashCode(seed);
+    const h2 = hashCode(seed + '*face');
+    const h3 = hashCode('face*' + seed);
+
+    const grad = GRADIENTS[h1 % GRADIENTS.length];
+    const skin = SKIN_TONES[h2 % SKIN_TONES.length];
+    const hairStyle = h1 % 9;                     // 0-8
+    let hair = HAIR_COLORS[h3 % HAIR_COLORS.length];
+    const cloth = CLOTH_COLORS[(h1 >> 4) % CLOTH_COLORS.length];
+    const senior = (h2 >> 3) % 5 === 0;           // 約20%はシニア（白髪・グレー）
+    if (senior) hair = ((h2 >> 5) % 2) ? '#e9e6df' : '#9aa2ab';
+    const glasses = (h3 >> 2) % 4 === 0;          // 約25%
+    const facialHair = !glasses && ((h1 >> 7) % 5 === 0); // 約20%（バランス調整）
+    const blush = (h2 >> 6) % 3 === 0;            // 約33%
+    const earrings = (h3 >> 4) % 4 === 0;         // 約25%
+    const gid = 'fa' + (h1 % 100000);
+
+    const skinShade = shade(skin, 0.88);
+    const lineColor = '#3a2e2e';
+
+    const parts = [];
+
+    /* --- 背面の髪（ロング・アフロなど頭の後ろに広がるもの） --- */
+    if (hairStyle === 4) { // ロングストレート
+      parts.push('<path d="M18 56 L18 26 C18 13 46 13 46 26 L46 56 Z" fill="' + hair + '"/>');
+    }
+    if (hairStyle === 6) { // カーリー／アフロ
+      parts.push('<circle cx="32" cy="20" r="11.5" fill="' + hair + '"/>' +
+        '<circle cx="20.5" cy="26" r="6" fill="' + hair + '"/>' +
+        '<circle cx="43.5" cy="26" r="6" fill="' + hair + '"/>');
+    }
+    if (hairStyle === 8) { // ポニーテール（後ろ髪）
+      parts.push('<path d="M40 16 C50 18 50 34 45 44 C47 32 45 22 38 19 Z" fill="' + hair + '"/>');
+    }
+
+    /* --- 体（服） --- */
+    parts.push('<path d="M9 66 C9 50 19 45.5 32 45.5 C45 45.5 55 50 55 66 Z" fill="' + cloth + '"/>');
+    /* 襟元 */
+    parts.push('<path d="M27 46 L32 51 L37 46 Z" fill="' + shade(cloth, 0.8) + '"/>');
+
+    /* --- 首・頭・耳 --- */
+    parts.push('<rect x="28" y="37.5" width="8" height="10" rx="3" fill="' + skinShade + '"/>');
+    parts.push('<circle cx="18.8" cy="30.5" r="3" fill="' + skin + '"/>');
+    parts.push('<circle cx="45.2" cy="30.5" r="3" fill="' + skin + '"/>');
+    if (earrings) {
+      parts.push('<circle cx="18.6" cy="33.6" r="1.1" fill="#f2c94c"/>' +
+        '<circle cx="45.4" cy="33.6" r="1.1" fill="#f2c94c"/>');
+    }
+    parts.push('<ellipse cx="32" cy="29" rx="13.4" ry="14" fill="' + skin + '"/>');
+
+    /* --- シニアの頬のライン --- */
+    if (senior) {
+      parts.push('<path d="M24.5 35.5 Q25.5 37 27 37.5" stroke="' + skinShade + '" stroke-width="1" fill="none" stroke-linecap="round"/>' +
+        '<path d="M39.5 35.5 Q38.5 37 37 37.5" stroke="' + skinShade + '" stroke-width="1" fill="none" stroke-linecap="round"/>');
+    }
+
+    /* --- ひげ（口より先に描いて口を上に重ねる） --- */
+    if (facialHair) {
+      const beardKind = (h2 >> 8) % 2;
+      if (beardKind === 0) { // あごひげ
+        parts.push('<path d="M19.6 29 C19.6 41 24.5 46 32 46 C39.5 46 44.4 41 44.4 29 L44.4 33 C44.4 42.5 39.5 47 32 47 C24.5 47 19.6 42.5 19.6 33 Z" fill="' + hair + '"/>' +
+          '<path d="M23 36 C24 42 27.5 44.5 32 44.5 C36.5 44.5 40 42 41 36 C41 41 37.5 44 32 44 C26.5 44 23 41 23 36 Z" fill="' + hair + '"/>');
+      } else { // 口ひげ
+        parts.push('<path d="M26.8 34.6 Q32 32.8 37.2 34.6 Q32 36.8 26.8 34.6 Z" fill="' + hair + '"/>');
+      }
+    }
+
+    /* --- 目・眉・口・頬 --- */
+    if (senior && (h3 >> 6) % 2 === 0) {
+      // にっこり目（アーチ）
+      parts.push('<path d="M24.8 30 Q26.8 28.2 28.8 30" stroke="' + lineColor + '" stroke-width="1.6" fill="none" stroke-linecap="round"/>' +
+        '<path d="M35.2 30 Q37.2 28.2 39.2 30" stroke="' + lineColor + '" stroke-width="1.6" fill="none" stroke-linecap="round"/>');
+    } else {
+      parts.push('<circle cx="26.8" cy="29.8" r="1.7" fill="' + lineColor + '"/>' +
+        '<circle cx="37.2" cy="29.8" r="1.7" fill="' + lineColor + '"/>');
+    }
+    const browColor = senior ? hair : shade(hair, 0.75);
+    parts.push('<path d="M24.3 26 Q26.8 24.6 29.3 26" stroke="' + browColor + '" stroke-width="1.5" fill="none" stroke-linecap="round"/>' +
+      '<path d="M34.7 26 Q37.2 24.6 39.7 26" stroke="' + browColor + '" stroke-width="1.5" fill="none" stroke-linecap="round"/>');
+    if (blush) {
+      parts.push('<circle cx="23.6" cy="33.6" r="2" fill="#f08a8a" opacity="0.35"/>' +
+        '<circle cx="40.4" cy="33.6" r="2" fill="#f08a8a" opacity="0.35"/>');
+    }
+    const mouthKind = (h1 >> 9) % 3;
+    if (mouthKind === 0) { // 笑顔（開口）
+      parts.push('<path d="M28 35.6 Q32 40 36 35.6 Z" fill="#8a4a42"/>');
+    } else { // 微笑み
+      parts.push('<path d="M28.4 36.4 Q32 39.4 35.6 36.4" stroke="#8a4a42" stroke-width="1.6" fill="none" stroke-linecap="round"/>');
+    }
+
+    /* --- 前面の髪型 --- */
+    const cap = 'M18.6 30 A13.4 14 0 0 1 45.4 30 L45.4 28 C45.4 21.5 40.5 18.4 32 18.4 C23.5 18.4 18.6 21.5 18.6 28 Z';
+    switch (hairStyle) {
+      case 0: // ショート
+        parts.push('<path d="' + cap + '" fill="' + hair + '"/>');
+        break;
+      case 1: // 前髪ぱっつん
+        parts.push('<path d="M18.6 30 A13.4 14 0 0 1 45.4 30 L45.4 27 C45.4 20 40.5 16.8 32 16.8 C23.5 16.8 18.6 20 18.6 27 Z" fill="' + hair + '"/>' +
+          '<path d="M19.5 27.5 C22 23.5 26 22.5 32 22.5 C38 22.5 42 23.5 44.5 27.5 C42 25.8 38 25 32 25 C26 25 22 25.8 19.5 27.5 Z" fill="' + hair + '"/>');
+        break;
+      case 2: // ツンツン（スパイキー）
+        parts.push('<path d="' + cap + '" fill="' + hair + '"/>' +
+          '<path d="M21 20.5 L23 14.5 L25.5 18.3 L28.5 13 L31.5 17.5 L34.5 13.2 L37 17.8 L40 14.8 L41.5 20 Z" fill="' + hair + '"/>');
+        break;
+      case 3: // ボブ
+        parts.push('<path d="M17.2 37 C14.8 14.5 49.2 14.5 46.8 37 C44.6 33 44.2 28.5 43.6 25.8 C39.8 20.8 24.2 20.8 20.4 25.8 C19.8 28.5 19.4 33 17.2 37 Z" fill="' + hair + '"/>');
+        break;
+      case 4: // ロング（前面）
+        parts.push('<path d="M18.6 30 A13.4 14 0 0 1 45.4 30 L45.4 27 C45.4 20.5 40.5 17.8 32 17.8 C23.5 17.8 18.6 20.5 18.6 27 Z" fill="' + hair + '"/>');
+        break;
+      case 5: // おだんご
+        parts.push('<circle cx="32" cy="13" r="4.8" fill="' + hair + '"/>' +
+          '<path d="' + cap + '" fill="' + hair + '"/>');
+        break;
+      case 6: // カーリー（前面）
+        parts.push('<path d="' + cap + '" fill="' + hair + '"/>');
+        break;
+      case 7: // 薄毛・サイドのみ（シニア風）
+        parts.push('<path d="M18.6 31 C18.4 25 19.8 21.5 22.8 19.8 C21.4 23.5 21.2 27.5 21.6 31 Z" fill="' + hair + '"/>' +
+          '<path d="M45.4 31 C45.6 25 44.2 21.5 41.2 19.8 C42.6 23.5 42.8 27.5 42.4 31 Z" fill="' + hair + '"/>' +
+          '<path d="M24 17.8 Q32 14.5 40 17.8" stroke="' + hair + '" stroke-width="1.6" fill="none" stroke-linecap="round"/>');
+        break;
+      case 8: // ポニーテール（前面）
+        parts.push('<path d="' + cap + '" fill="' + hair + '"/>');
+        break;
+    }
+
+    /* --- メガネ --- */
+    if (glasses) {
+      parts.push('<g stroke="' + lineColor + '" stroke-width="1.4" fill="none">' +
+        '<circle cx="26.8" cy="30" r="4.4"/>' +
+        '<circle cx="37.2" cy="30" r="4.4"/>' +
+        '<path d="M31.2 30 L32.8 30"/>' +
+        '<path d="M22.4 29.4 L19 28.6"/><path d="M41.6 29.4 L45 28.6"/></g>');
+    }
+
     return (
       '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img">' +
       '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="1" y2="1">' +
-      '<stop offset="0" stop-color="' + g[0] + '"/><stop offset="1" stop-color="' + g[1] + '"/>' +
-      '</linearGradient></defs>' +
+      '<stop offset="0" stop-color="' + grad[0] + '"/><stop offset="1" stop-color="' + grad[1] + '"/>' +
+      '</linearGradient><clipPath id="' + gid + 'c"><circle cx="32" cy="32" r="32"/></clipPath></defs>' +
       '<circle cx="32" cy="32" r="32" fill="url(#' + gid + ')"/>' +
-      '<circle cx="' + cx1 + '" cy="' + cy1 + '" r="10" fill="rgba(255,255,255,0.22)"/>' +
-      '<circle cx="' + (64 - cx1) + '" cy="' + (64 - cy1) + '" r="14" fill="rgba(255,255,255,0.12)"/>' +
-      '<g transform="translate(17.6, 17.6) scale(1.2)" fill="none" stroke="#ffffff" stroke-width="2" ' +
-      'stroke-linecap="round" stroke-linejoin="round">' + window.Icons.inner(icon) + '</g>' +
+      '<g clip-path="url(#' + gid + 'c)">' + parts.join('') + '</g>' +
       '</svg>'
     );
   }
