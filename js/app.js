@@ -175,6 +175,26 @@
     $('#provider-badge').innerHTML = Icons.svg(p.icon) + '<span>' + p.label + '</span>';
   }
 
+  /* ============ テーマ（ダーク／ライト） ============ */
+  const THEME_KEY = 'aml_theme';
+  function currentTheme() {
+    return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+  }
+  function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem(THEME_KEY, theme); } catch (e) { /* 無視 */ }
+    const btn = $('#btn-theme');
+    if (btn) {
+      btn.innerHTML = Icons.svg(theme === 'dark' ? 'sun' : 'moon');
+      btn.title = theme === 'dark' ? 'ライトモードに切替' : 'ダークモードに切替';
+    }
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = theme === 'dark' ? '#05070c' : '#eef1f6';
+  }
+  function toggleTheme() {
+    applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+  }
+
   /* ============ 通知（PWA） ============ */
   async function requestNotifyPermission() {
     if (!state.settings.notify || !('Notification' in window)) return;
@@ -771,6 +791,8 @@
   /* ============ イベント登録 ============ */
   document.addEventListener('DOMContentLoaded', function () {
     Icons.hydrate();
+    applyTheme(currentTheme());
+    $('#btn-theme').addEventListener('click', toggleTheme);
     renderSettings();
     updateProviderBadge();
     setupSourceEvents();

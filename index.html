@@ -5,7 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Agent Market Lab — マルチAIエージェント市場分析</title>
 <meta name="description" content="複数のAIエージェントが並列で市場分析を行い、資料を自動生成するツール">
-<meta name="theme-color" content="#0e1117">
+<meta name="theme-color" content="#05070c">
+<script>
+/* ちらつき防止のため、CSS読込前に保存済みテーマを適用 */
+(function () {
+  try {
+    var t = localStorage.getItem('aml_theme');
+    if (!t) t = (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+    document.documentElement.dataset.theme = t;
+  } catch (e) { document.documentElement.dataset.theme = 'dark'; }
+})();
+</script>
 <link rel="stylesheet" href="css/style.css">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -22,11 +32,12 @@
     <span class="brand-icon" data-icon="bot"></span>
     <div>
       <h1>Agent Market Lab</h1>
-      <p>マルチAIエージェント市場分析ツール</p>
+      <p>Multi-Agent Market Intelligence</p>
     </div>
   </div>
   <div class="header-actions">
     <span id="provider-badge" class="provider-badge"></span>
+    <button id="btn-theme" class="btn btn-ghost btn-square" title="ダーク／ライト切替"></button>
     <button id="btn-settings" class="btn btn-ghost btn-icon-text" title="設定"><span data-icon="settings"></span><span class="btn-label">設定</span></button>
   </div>
 </header>
@@ -60,7 +71,7 @@
         <label class="level-card">
           <input type="radio" name="level" value="1">
           <div class="level-body">
-            <span class="level-icon" data-icon="zap"></span>
+            <div class="level-head"><span class="level-icon" data-icon="zap"></span><span class="lv-code">LV.01 / QUICK</span></div>
             <strong>Lv.1 クイック</strong>
             <span class="level-desc">8体のエージェントが要点を素早く分析。まず全体像を掴みたいときに。</span>
             <span class="level-meta">約8エージェント・短時間</span>
@@ -69,7 +80,7 @@
         <label class="level-card">
           <input type="radio" name="level" value="2" checked>
           <div class="level-body">
-            <span class="level-icon" data-icon="search"></span>
+            <div class="level-head"><span class="level-icon" data-icon="search"></span><span class="lv-code">LV.02 / STANDARD</span></div>
             <strong>Lv.2 スタンダード</strong>
             <span class="level-desc">16体のエージェントがバランスよく多角的に分析。通常はこちら。</span>
             <span class="level-meta">約16エージェント・標準</span>
@@ -78,7 +89,7 @@
         <label class="level-card">
           <input type="radio" name="level" value="3">
           <div class="level-body">
-            <span class="level-icon" data-icon="layers"></span>
+            <div class="level-head"><span class="level-icon" data-icon="layers"></span><span class="lv-code">LV.03 / DEEP</span></div>
             <strong>Lv.3 ディープ</strong>
             <span class="level-desc">28体のエージェントがあらゆる角度から極めて詳細に徹底分析。</span>
             <span class="level-meta">約28エージェント・最高精度</span>
