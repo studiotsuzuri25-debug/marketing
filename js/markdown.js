@@ -77,7 +77,7 @@
           t += '</tr>';
         });
         t += '</tbody></table>';
-        html.push(t);
+        html.push('<div class="table-scroll">' + t + '</div>');
         continue;
       }
 
