@@ -13,6 +13,7 @@
       agentTokens: 1024,
       synthTokens: 3000,
       reportCap: 3000,
+      sourceChars: 12000,
       instruction: '要点のみを簡潔にまとめてください。箇条書き中心で、全体で400字程度。最重要ポイント3つと結論を必ず含めてください。',
       synthInstruction: 'コンパクトで読みやすい資料（A4で2〜3ページ相当）にまとめてください。',
     },
@@ -22,6 +23,7 @@
       agentTokens: 2048,
       synthTokens: 6000,
       reportCap: 5000,
+      sourceChars: 24000,
       instruction: '担当分野についてバランス良く分析してください。見出しと箇条書きを使い、全体で800〜1200字程度。根拠・示唆・推奨アクションを含めてください。',
       synthInstruction: '標準的なビジネスレポート（A4で5〜8ページ相当）としてまとめてください。表も適宜使ってください。',
     },
@@ -31,6 +33,7 @@
       agentTokens: 4096,
       synthTokens: 8192,
       reportCap: 8000,
+      sourceChars: 48000,
       instruction: '担当分野について、極めて詳細かつ徹底的に分析してください。定量的な推定値（推定と明記）、複数の視点、具体例、反論の検討、詳細な推奨アクションを含め、見出し・表・箇条書きを駆使して2000字以上の深い報告をしてください。',
       synthInstruction: '非常に詳細で網羅的な本格レポートとしてまとめてください。各章を深く掘り下げ、表・比較・数値目安・ロードマップを盛り込み、そのまま経営会議に出せる完成度にしてください。',
     },
@@ -47,7 +50,19 @@
     running: false,
     finalReport: '',
     startedAt: null,
+    sourceDigest: '',
+    sourceNames: [],
   };
+
+  /* ソース資料をプロンプトに埋め込むブロックを生成 */
+  function sourceBlock(maxChars) {
+    if (!state.sourceDigest) return '';
+    let digest = state.sourceDigest;
+    if (maxChars && digest.length > maxChars) digest = digest.slice(0, maxChars) + '\n…（以降省略）';
+    return '\n\n【ユーザー提供の参考資料】\n' +
+      '以下の資料を最優先の根拠として分析してください。資料に基づく記述には出典（資料番号・資料名）を明示し、' +
+      '資料にない事項を学習知識で補う場合はその旨を区別して書いてください。\n\n' + digest;
+  }
 
   function loadSettings() {
     const defaults = { provider: 'demo', concurrency: 4, keys: {}, models: {} };
@@ -154,9 +169,14 @@
     }
     try {
       const system = 'あなたは市場分析プロジェクトのチーム編成AIです。指示されたJSONのみを出力し、それ以外の文章は一切出力しません。';
+      const sourceHint = state.sourceNames.length
+        ? '\n\nユーザーは参考資料を' + state.sourceNames.length + '件提供しています（' +
+          state.sourceNames.slice(0, 10).join(' / ').slice(0, 300) +
+          '）。資料の読み込み・検証を担当するエージェントも含めてください。'
+        : '';
       const prompt =
         '次の市場分析テーマに最適なAIエージェントチームを' + count + '体分、JSON配列で作成してください。\n\n' +
-        'テーマ:\n' + topic + '\n\n' +
+        'テーマ:\n' + topic + sourceHint + '\n\n' +
         '条件:\n' +
         '- それぞれ異なる専門役割にする（市場規模、競合、顧客、トレンド、価格、チャネル、リスク、規制、SNS、海外事例など、テーマに合わせて多角的に）\n' +
         '- name はカタカナ3〜4文字の親しみやすい名前（重複禁止）\n' +
@@ -214,9 +234,12 @@
       '担当領域: ' + agent.focus + '\n' +
       'あなたはチームの一員として、自分の担当領域に集中して分析報告を行います。' +
       '報告は日本語のMarkdown形式（見出し・箇条書き・必要に応じて表）で書いてください。' +
-      'Web検索はできないため、学習知識に基づく分析であることを踏まえ、具体的な数値は「推定」と明記してください。';
+      (state.sourceDigest
+        ? 'ユーザー提供の参考資料が最重要の根拠です。資料の内容を精読し、担当領域に関係する事実・数値を積極的に引用してください。'
+        : 'Web検索はできないため、学習知識に基づく分析であることを踏まえ、具体的な数値は「推定」と明記してください。');
     const prompt =
-      '【分析テーマ】\n' + state.topic + '\n\n' +
+      '【分析テーマ】\n' + state.topic +
+      sourceBlock(lv.sourceChars) + '\n\n' +
       '【指示】\nあなたの担当領域「' + agent.role + '」の観点からこのテーマを分析し、報告してください。\n' +
       lv.instruction + '\n\n最後に「**結論:**」として担当領域からの最重要メッセージを1〜2文で述べてください。';
 
@@ -233,6 +256,7 @@
           signal: signal,
           demoRole: agent.role,
           demoTopic: state.topic,
+          demoSourceCount: state.sourceNames.length,
         });
         agent.report = text.trim();
         agent.status = 'done';
@@ -312,7 +336,13 @@
       '3. 市場分析の本編（章立てして各報告の知見を統合）\n' +
       '4. 戦略提言・推奨アクション\n' +
       '5. リスクと留意点\n' +
-      '6. 付録: 分析チーム一覧\n\n' +
+      '6. 付録: 分析チーム一覧' +
+      (state.sourceNames.length ? '・参考資料一覧' : '') + '\n\n' +
+      (state.sourceNames.length
+        ? '【ユーザー提供の参考資料一覧】\n' +
+          state.sourceNames.map(function (n, i) { return (i + 1) + '. ' + n; }).join('\n') +
+          '\n（各エージェントはこれらの資料を根拠に分析しています。資料に基づく記述の出典表記を維持してください）\n\n'
+        : '') +
       '【エージェントからの報告】\n\n' + reports;
 
     const text = await AI.call({
@@ -326,6 +356,7 @@
       demoKind: 'synthesis',
       demoTopic: state.topic,
       demoCount: done.length,
+      demoSourceCount: state.sourceNames.length,
     });
 
     state.finalReport = text.trim();
@@ -458,10 +489,17 @@
       warning.hidden = false;
       return;
     }
+    if (Sources.loadingCount() > 0) {
+      warning.textContent = '参考資料の取り込みが完了していません。完了するまで少しお待ちください（不要な資料は ✕ で削除できます）。';
+      warning.hidden = false;
+      return;
+    }
 
     const levelInput = document.querySelector('input[name="level"]:checked');
     state.level = parseInt(levelInput ? levelInput.value : '2', 10);
     state.topic = topic;
+    state.sourceDigest = Sources.buildDigest(LEVELS[state.level].sourceChars);
+    state.sourceNames = Sources.listNames();
     state.finalReport = '';
     state.abort = new AbortController();
     state.running = true;
@@ -473,7 +511,8 @@
     $('#report-section').hidden = true;
     $('#btn-stop').hidden = false;
     $('#btn-new').hidden = true;
-    $('#run-topic').textContent = '「' + topic + '」｜' + LEVELS[state.level].name + '｜' + provider.label;
+    $('#run-topic').textContent = '「' + topic + '」｜' + LEVELS[state.level].name + '｜' + provider.label +
+      (state.sourceNames.length ? '｜参考資料 ' + state.sourceNames.length + '件' : '｜指示文のみ');
     $('#agent-grid').innerHTML = '';
     $('#synth-slot').innerHTML = '';
     $('#progress-text').textContent = '';
@@ -600,10 +639,80 @@
     setTimeout(function () { w.print(); }, 400);
   }
 
+  /* ============ ソースUI ============ */
+  function sourceIcon(src) {
+    if (src.type === 'url') return '🔗';
+    const n = src.name.toLowerCase();
+    if (/\.pdf$/.test(n)) return '📕';
+    if (/\.(xlsx|xlsm|xls|ods|csv|tsv)$/.test(n)) return '📊';
+    return '📄';
+  }
+
+  function renderSourceList() {
+    const list = $('#source-list');
+    list.innerHTML = '';
+    Sources.all.forEach(function (src) {
+      const li = document.createElement('li');
+      li.className = 'source-item ' + src.status;
+      const detail = src.status === 'error' ? ('⚠ ' + (src.error || '取り込み失敗')) : src.detail;
+      li.innerHTML =
+        '<span class="s-icon">' + sourceIcon(src) + '</span>' +
+        '<span class="s-name" title="' + escapeText(src.name) + '">' + escapeText(src.name) + '</span>' +
+        (src.status === 'loading' ? '<span class="spinner"></span>' : '') +
+        '<span class="s-detail">' + escapeText(detail) + '</span>' +
+        '<button class="s-remove" title="削除" data-id="' + src.id + '">✕</button>';
+      li.querySelector('.s-remove').addEventListener('click', function () { Sources.remove(src.id); });
+      list.appendChild(li);
+    });
+    $('#url-proxy-note').hidden = !Sources.all.some(function (s) { return s.type === 'url'; });
+  }
+
+  function addUrlFromInput() {
+    const input = $('#url-input');
+    const warning = $('#setup-warning');
+    warning.hidden = true;
+    if (!input.value.trim()) return;
+    try {
+      Sources.addUrl(input.value);
+      input.value = '';
+    } catch (e) {
+      warning.textContent = e.message;
+      warning.hidden = false;
+    }
+  }
+
+  function setupSourceEvents() {
+    Sources.setOnChange(renderSourceList);
+    $('#btn-add-url').addEventListener('click', addUrlFromInput);
+    $('#url-input').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); addUrlFromInput(); }
+    });
+
+    const zone = $('#drop-zone');
+    const fileInput = $('#file-input');
+    zone.addEventListener('click', function () { fileInput.click(); });
+    fileInput.addEventListener('change', function () {
+      if (fileInput.files.length) Sources.addFiles(fileInput.files);
+      fileInput.value = '';
+    });
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.add('dragover'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.remove('dragover'); });
+    });
+    zone.addEventListener('drop', function (e) {
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+        Sources.addFiles(e.dataTransfer.files);
+      }
+    });
+  }
+
   /* ============ イベント登録 ============ */
   document.addEventListener('DOMContentLoaded', function () {
     renderSettings();
     updateProviderBadge();
+    setupSourceEvents();
 
     $('#btn-start').addEventListener('click', startAnalysis);
     $('#btn-stop').addEventListener('click', stopAnalysis);
