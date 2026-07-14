@@ -63,6 +63,7 @@
     sourceNames: [],
     researchDigest: '',
     researchCount: 0,
+    historyId: null,
   };
 
   /* ソース資料＋自動リサーチ結果をプロンプトに埋め込むブロックを生成 */
@@ -707,6 +708,7 @@
     state.researchCount = 0;
     state.settings.autoResearch = $('#research-input').checked;
     saveSettings();
+    state.historyId = null;
     state.finalReport = '';
     state.abort = new AbortController();
     state.running = true;
@@ -779,6 +781,7 @@
       const secs = Math.round((new Date() - state.startedAt) / 1000);
       setPhase('分析完了（所要 ' + Math.floor(secs / 60) + '分' + (secs % 60) + '秒）', 100, 'check');
       showReport();
+      saveToHistory();
       sendNotification('市場分析が完了しました',
         '「' + state.topic.slice(0, 40) + '」の資料ができあがりました。タップして確認してください。');
     } catch (e) {
@@ -838,6 +841,7 @@
       if (signal.aborted) return;
       setPhase('資料を更新しました', 100, 'check');
       showReport();
+      saveToHistory();
       sendNotification('資料を更新しました', '最新のエージェント報告で資料を再生成しました。');
     } catch (e) {
       if (signal.aborted) return;
@@ -849,6 +853,107 @@
       setPhase('資料の再生成でエラーが発生しました', null, 'alert');
       $('#progress-text').textContent = e.message || String(e);
     }
+  }
+
+  /* ============ 分析履歴 ============ */
+  function snapshotAgents() {
+    return state.agents.map(function (a) {
+      return { name: a.name, role: a.role, icon: a.icon, focus: a.focus, status: a.status, report: a.report, error: a.error };
+    });
+  }
+
+  function saveToHistory() {
+    try {
+      const data = {
+        topic: state.topic,
+        level: state.level,
+        provider: state.settings.provider,
+        finalReport: state.finalReport,
+        sourceNames: state.sourceNames,
+        researchCount: state.researchCount,
+        agents: snapshotAgents(),
+        synth: state.synth ? {
+          name: state.synth.name, role: state.synth.role, icon: state.synth.icon,
+          focus: state.synth.focus, status: state.synth.status, report: state.synth.report,
+        } : null,
+      };
+      if (state.historyId && RunHistory.get(state.historyId)) {
+        RunHistory.update(state.historyId, data);
+      } else {
+        state.historyId = RunHistory.add(data);
+      }
+    } catch (e) {
+      console.warn('履歴の保存に失敗しました:', e);
+    }
+  }
+
+  function formatHistoryDate(ts) {
+    try {
+      return new Date(ts).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return ''; }
+  }
+
+  function renderHistory() {
+    const list = $('#history-list');
+    const entries = RunHistory.all();
+    if (!entries.length) {
+      list.innerHTML = '<p class="hint">まだ履歴がありません。分析が完了すると自動で保存されます。</p>';
+      return;
+    }
+    list.innerHTML = entries.map(function (e) {
+      const lv = (LEVELS[e.level] || {}).name || '';
+      const provider = (AI.PROVIDERS[e.provider] || {}).label || e.provider || '';
+      return '<div class="history-item" data-history-id="' + e.id + '">' +
+        '<div class="h-main">' +
+        '<div class="h-topic">' + escapeText(e.topic || '(無題)') + '</div>' +
+        '<div class="h-meta">' + formatHistoryDate(e.ts) + '｜' + escapeText(lv) + '｜' + escapeText(provider) +
+        '｜エージェント' + (e.agents || []).length + '体' + (e.updated ? '｜更新あり' : '') + '</div>' +
+        '</div>' +
+        '<button type="button" class="h-del" data-history-del="' + e.id + '" title="この履歴を削除">' + Icons.svg('trash') + '</button>' +
+        '</div>';
+    }).join('');
+  }
+
+  function loadHistoryEntry(id) {
+    const entry = RunHistory.get(id);
+    if (!entry) return;
+    if (state.running) {
+      alert('分析の実行中は履歴を開けません。停止してから開いてください。');
+      return;
+    }
+    if (state.abort) state.abort.abort();
+    state.historyId = entry.id;
+    state.topic = entry.topic || '';
+    state.level = entry.level || 2;
+    state.finalReport = entry.finalReport || '';
+    state.sourceNames = entry.sourceNames || [];
+    state.sourceDigest = '';
+    state.researchDigest = '';
+    state.researchCount = entry.researchCount || 0;
+    state.agents = (entry.agents || []).map(function (a, i) {
+      return Object.assign({ id: i, report: '', error: '' }, a);
+    });
+    state.synth = Object.assign({ id: 'synth', status: 'done', report: '', error: '' }, entry.synth || Agents.SYNTH_PROFILE);
+
+    closeModal('history-modal');
+    $('#setup-view').hidden = true;
+    $('#run-view').hidden = false;
+    $('#btn-stop').hidden = true;
+    $('#btn-new').hidden = false;
+    $('#regen-bar').hidden = true;
+    const provider = (AI.PROVIDERS[entry.provider] || {}).label || entry.provider || '';
+    $('#run-topic').textContent = '「' + state.topic + '」｜' + ((LEVELS[state.level] || {}).name || '') + '｜' + provider +
+      (state.researchCount ? '｜自動調査 ' + state.researchCount + '件' : '');
+    renderGrid();
+    updateProgress();
+    setPhase('履歴を表示中（' + formatHistoryDate(entry.ts) + '）', 100, 'history');
+    if (state.finalReport) {
+      $('#report-content').innerHTML = MD.toHtml(state.finalReport);
+      $('#report-section').hidden = false;
+    } else {
+      $('#report-section').hidden = true;
+    }
+    window.scrollTo({ top: 0 });
   }
 
   function resetToSetup() {
@@ -1157,6 +1262,29 @@
     $('#agent-grid').addEventListener('click', handleRetryClick, true);
     $('#synth-slot').addEventListener('click', handleRetryClick, true);
     $('#btn-regen').addEventListener('click', regenerateReport);
+
+    // 分析履歴
+    $('#btn-history').addEventListener('click', function () {
+      renderHistory();
+      openModal('history-modal');
+    });
+    $('#history-list').addEventListener('click', function (e) {
+      const del = e.target.closest('[data-history-del]');
+      if (del) {
+        e.stopPropagation();
+        RunHistory.remove(del.dataset.historyDel);
+        renderHistory();
+        return;
+      }
+      const item = e.target.closest('[data-history-id]');
+      if (item) loadHistoryEntry(item.dataset.historyId);
+    });
+    $('#btn-history-clear').addEventListener('click', function () {
+      if (confirm('保存されている分析履歴をすべて削除します。よろしいですか？')) {
+        RunHistory.clear();
+        renderHistory();
+      }
+    });
 
     $('#btn-start').addEventListener('click', startAnalysis);
     $('#btn-stop').addEventListener('click', stopAnalysis);

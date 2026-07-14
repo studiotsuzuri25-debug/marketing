@@ -1,7 +1,7 @@
 /* Service Worker — アプリシェルのキャッシュと通知クリック処理 */
 'use strict';
 
-const CACHE_NAME = 'aml-cache-v11';
+const CACHE_NAME = 'aml-cache-v12';
 const APP_SHELL = [
   './',
   'index.html',
@@ -14,6 +14,7 @@ const APP_SHELL = [
   'js/sources.js',
   'js/auth.js',
   'js/research.js',
+  'js/history.js',
   'js/app.js',
   'vendor/xlsx.full.min.js',
   'vendor/pdf.min.js',

@@ -488,6 +488,28 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--g
 .fetch-models-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
 .fetch-models-row .hint { margin: 0; font-size: 11.5px; }
 .btn-sm { padding: 6px 12px; font-size: 12px; }
+.history-list { display: flex; flex-direction: column; gap: 8px; }
+.history-item {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 14px; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.history-item:hover { border-color: var(--accent-line); background: var(--bg-card-hover); }
+.history-item .h-main { flex: 1; min-width: 0; }
+.history-item .h-topic {
+  font-size: 13.5px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.history-item .h-meta { font-size: 10.5px; color: var(--text-dim); font-family: var(--mono); margin-top: 2px; }
+.history-item .h-del {
+  background: none; border: none; color: var(--text-dim); cursor: pointer;
+  padding: 6px; border-radius: var(--radius-sm); display: inline-flex; flex-shrink: 0;
+}
+.history-item .h-del:hover { background: var(--red-soft); color: var(--red); }
+.history-item .h-del .icon { width: 15px; height: 15px; }
+.history-footer { text-align: left; }
+
 .auth-tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
 .auth-tab {
   background: none; border: none; border-bottom: 2px solid transparent;
