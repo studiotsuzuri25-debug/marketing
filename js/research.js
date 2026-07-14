@@ -97,20 +97,26 @@
     return null;
   }
 
-  /* テーマから調査クエリを組み立てる（AI不要のテンプレート方式で確実に） */
+  /* テーマから調査クエリを組み立てる（AI不要のテンプレート方式で確実に）
+     SNS・Instagram系の調査はどのレベルでも必ず含める */
   function buildQueries(topic, count) {
     const t = topic.replace(/\s+/g, ' ').slice(0, 60);
-    const all = [
+    const sns = [
+      t + ' Instagram トレンド 人気 ハッシュタグ',
+      t + ' インスタ映え 人気投稿 傾向 バズ',
+      t + ' SNS 口コミ 評判 話題',
+    ];
+    const base = [
       t + ' 市場規模 統計 最新',
       t + ' 競合 シェア 比較',
-      t + ' 口コミ 評判 レビュー',
-      t + ' SNS トレンド 話題',
       t + ' 業界 動向 ニュース',
       t + ' 消費者 調査 アンケート',
+      t + ' 口コミ レビュー 評価',
       t + ' 価格 相場',
       t + ' 課題 リスク 規制',
     ];
-    return all.slice(0, count);
+    const snsCount = count >= 8 ? 3 : count >= 5 ? 2 : 1;
+    return base.slice(0, Math.max(1, count - snsCount)).concat(sns.slice(0, snsCount));
   }
 
   /**

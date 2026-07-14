@@ -11,7 +11,8 @@
     { role: 'SWOT分析官', icon: 'grid', focus: '強み・弱み・機会・脅威を整理し戦略的示唆を導く' },
     { role: '価格戦略アナリスト', icon: 'percent', focus: '価格帯の分布、価格弾力性、最適なプライシング戦略を分析する' },
     { role: '流通チャネル調査員', icon: 'truck', focus: '販売チャネルの構造、EC/実店舗の比率、チャネル別の攻略法を分析する' },
-    { role: 'SNS動向アナリスト', icon: 'phone', focus: 'SNS上の話題性、インフルエンサー動向、UGCの傾向を分析する' },
+    { role: 'SNS動向アナリスト', icon: 'phone', focus: 'SNS全般の話題性、インフルエンサー動向、UGC・口コミの傾向を分析する' },
+    { role: 'Instagram分析官', icon: 'camera', focus: 'Instagramのトレンド、人気ハッシュタグ、検索されるキーワード、伸びている投稿・支持されるビジュアル表現の傾向を分析する' },
     { role: '規制・法務リサーチャー', icon: 'scale', focus: '関連する法規制、業界ルール、コンプライアンス上の注意点を分析する' },
     { role: '技術動向スカウト', icon: 'cpu', focus: '関連技術の進化、DX動向、テクノロジーがもたらす変化を分析する' },
     { role: '海外市場リサーチャー', icon: 'globe', focus: '海外の類似市場・先行事例から国内市場への示唆を導く' },
@@ -236,10 +237,14 @@
     return a;
   }
 
-  /* ローカル生成のフォールバックチーム（AIによるチーム編成が使えない場合） */
+  /* ローカル生成のフォールバックチーム（AIによるチーム編成が使えない場合）
+     SNS・Instagram分析の担当を必ず1体含める */
   function buildLocalTeam(topic, count) {
     const seed = hashCode(topic || 'default') + count;
     const roles = shuffled(ROLE_POOL, seed).slice(0, Math.min(count, ROLE_POOL.length));
+    if (!roles.some(function (r) { return /Instagram|SNS/.test(r.role); })) {
+      roles[roles.length - 1] = ROLE_POOL.find(function (r) { return r.role === 'Instagram分析官'; });
+    }
     const names = shuffled(NAME_POOL, seed + 7);
     return roles.map(function (r, i) {
       return {

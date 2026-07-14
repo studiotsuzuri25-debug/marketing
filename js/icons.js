@@ -58,6 +58,7 @@
     compass: '<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>',
     activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
     book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+    camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
     refresh: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
     sun: '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>',
     moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
@@ -68,14 +69,14 @@
     'chart', 'pie', 'target', 'crosshair', 'trend', 'grid', 'percent', 'truck', 'phone', 'scale',
     'cpu', 'globe', 'shield', 'megaphone', 'sliders', 'user', 'users', 'map', 'tag', 'monitor',
     'pentool', 'layers', 'heart', 'rocket', 'link', 'leaf', 'bulb', 'star', 'compass', 'activity',
-    'search', 'file', 'book', 'pen',
+    'search', 'file', 'book', 'pen', 'camera',
   ];
 
   /* 役割名からアイコンを推測（AI編成でアイコン未指定・不正時のフォールバック） */
   const KEYWORD_MAP = [
     ['市場規模', 'chart'], ['競合', 'crosshair'], ['顧客', 'target'], ['トレンド', 'trend'],
     ['SWOT', 'grid'], ['価格', 'percent'], ['チャネル', 'truck'], ['流通', 'truck'],
-    ['SNS', 'phone'], ['法務', 'scale'], ['規制', 'scale'], ['技術', 'cpu'], ['海外', 'globe'],
+    ['Instagram', 'camera'], ['インスタ', 'camera'], ['SNS', 'phone'], ['法務', 'scale'], ['規制', 'scale'], ['技術', 'cpu'], ['海外', 'globe'],
     ['グローバル', 'globe'], ['リスク', 'shield'], ['施策', 'megaphone'], ['広告', 'monitor'],
     ['KPI', 'sliders'], ['ペルソナ', 'user'], ['ジャーニー', 'map'], ['ブランド', 'tag'],
     ['コンテンツ', 'pentool'], ['データ', 'activity'], ['業界', 'layers'], ['構造', 'layers'],
