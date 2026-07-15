@@ -323,8 +323,52 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--g
 .agent-card:hover::before, .agent-card:hover::after { opacity: 1; }
 @keyframes card-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
 .agent-card:hover { transform: translateY(-3px); border-color: var(--accent-line); box-shadow: var(--shadow), var(--glow); }
-.agent-avatar { width: 56px; height: 56px; border-radius: 50%; overflow: hidden; flex-shrink: 0; }
+.agent-avatar { width: 56px; height: 56px; border-radius: 50%; overflow: hidden; flex-shrink: 0; position: relative; }
 .agent-avatar svg { display: block; width: 100%; height: 100%; }
+
+/* ---- アニメーションオーブ（ChatGPT音声チャット風） ---- */
+.orb {
+  position: absolute; inset: 0; border-radius: 50%; overflow: hidden;
+  background: radial-gradient(circle at 50% 42%, #16233c 0%, #070b14 78%);
+  filter: hue-rotate(0deg);
+  animation: orbHue var(--huedur, 13s) linear infinite;
+}
+.orb-b {
+  position: absolute; width: 78%; height: 78%; border-radius: 50%;
+  filter: blur(7px); mix-blend-mode: screen; opacity: .9; will-change: transform;
+}
+.orb-b1 { left: 2%;  top: 6%;   background: radial-gradient(circle, hsl(var(--h1), 95%, 62%) 0%, transparent 66%); animation: orbMove1 var(--orbdur, 7s) ease-in-out infinite; animation-delay: var(--d1, 0s); }
+.orb-b2 { right: 0%; top: 22%;  background: radial-gradient(circle, hsl(var(--h2), 95%, 60%) 0%, transparent 66%); animation: orbMove2 var(--orbdur, 7s) ease-in-out infinite; animation-delay: var(--d2, 0s); }
+.orb-b3 { left: 16%; bottom: 0%; background: radial-gradient(circle, hsl(var(--h3), 92%, 58%) 0%, transparent 66%); animation: orbMove3 var(--orbdur, 7s) ease-in-out infinite; }
+.orb-sheen {
+  position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 38% 32%, rgba(255,255,255,.28) 0%, transparent 42%);
+  box-shadow: inset 0 0 10px rgba(0,0,0,.45);
+}
+@keyframes orbHue { to { filter: hue-rotate(360deg); } }
+@keyframes orbMove1 {
+  0%,100% { transform: translate(0,0) scale(1); }
+  33%     { transform: translate(20%,14%) scale(1.18); }
+  66%     { transform: translate(-10%,20%) scale(.86); }
+}
+@keyframes orbMove2 {
+  0%,100% { transform: translate(0,0) scale(1.02); }
+  33%     { transform: translate(-18%,10%) scale(.9); }
+  66%     { transform: translate(14%,-16%) scale(1.22); }
+}
+@keyframes orbMove3 {
+  0%,100% { transform: translate(0,0) scale(1.06); }
+  33%     { transform: translate(16%,-12%) scale(.88); }
+  66%     { transform: translate(-16%,-6%) scale(1.16); }
+}
+/* 分析中はより活発に */
+.agent-card.running .orb, .synth-card .orb { animation-duration: calc(var(--huedur, 13s) * .6); }
+.agent-card.running .orb-b { opacity: 1; }
+/* 完了・待機時は動きを穏やかに（色変化は継続） */
+.agent-card.done .orb-b, .agent-card.error .orb-b { animation-duration: calc(var(--orbdur, 7s) * 1.6); }
+@media (prefers-reduced-motion: reduce) {
+  .orb, .orb-b { animation: none; }
+}
 .agent-name {
   font-weight: 600; font-size: 13.5px; letter-spacing: .06em;
   font-family: var(--mono);

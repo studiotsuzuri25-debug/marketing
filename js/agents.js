@@ -65,46 +65,31 @@
   }
 
   /*
-   * エージェントアバター — HUD/コマンドコンソール風のモノグラムIDバッジを決定的に生成。
-   * 暗いディスク＋ターゲットレティクル状のアクセントリング＋2文字モノグラムで、
-   * 洗練された「AIオペレーター」の識別子として表現する（顔イラストは廃止）。
+   * エージェントアバター — ChatGPTの音声オーブのように、色付きのもやもやが
+   * ゆっくり動き・色相が移ろう「AIが稼働している」印象のアニメーションオーブ。
+   * エージェントごとに基準となる色相・動き・速度を決定的に変える。
    */
   function avatarSVG(seed, label) {
     const h = hashCode(seed);
-    const accent = ACCENTS[h % ACCENTS.length];
-    const gid = 'av' + (h % 100000);
-    const rot = h % 90;                 // レティクルの目盛り開始角
-    const mono = monogram(label != null ? label : seed);
-    const fontSize = mono.length >= 2 ? 20 : 26;
-
-    // 目盛り（外周に等間隔の短いティック）
-    let ticks = '';
-    for (let i = 0; i < 12; i++) {
-      const a = (rot + i * 30) * Math.PI / 180;
-      const r1 = 29.5, r2 = i % 3 === 0 ? 25.5 : 27.5;
-      ticks += '<line x1="' + (32 + r1 * Math.cos(a)).toFixed(2) + '" y1="' + (32 + r1 * Math.sin(a)).toFixed(2) +
-        '" x2="' + (32 + r2 * Math.cos(a)).toFixed(2) + '" y2="' + (32 + r2 * Math.sin(a)).toFixed(2) +
-        '" stroke="' + accent + '" stroke-width="' + (i % 3 === 0 ? 1.6 : 0.8) + '" opacity="' + (i % 3 === 0 ? 0.9 : 0.4) + '"/>';
-    }
-
+    const h2 = hashCode(seed + '~orb');
+    const baseH = h % 360;                       // 基準色相（エージェントごとに異なる）
+    const h1 = baseH;
+    const hueB = (baseH + 45) % 360;
+    const hueC = (baseH + 320) % 360;
+    const dur = (5 + (h % 45) / 10).toFixed(1);   // もやもやの動き 5.0〜9.4s
+    const hueDur = (9 + (h2 % 90) / 10).toFixed(1); // 色相の一巡 9.0〜17.9s
+    const d1 = '-' + ((h % 60) / 10).toFixed(1) + 's';
+    const d2 = '-' + ((h2 % 80) / 10).toFixed(1) + 's';
+    const style =
+      '--h1:' + h1 + ';--h2:' + hueB + ';--h3:' + hueC + ';' +
+      '--orbdur:' + dur + 's;--huedur:' + hueDur + 's;--d1:' + d1 + ';--d2:' + d2 + ';';
     return (
-      '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img">' +
-      '<defs>' +
-      '<radialGradient id="' + gid + 'g" cx="50%" cy="38%" r="70%">' +
-      '<stop offset="0" stop-color="#1a2434"/><stop offset="1" stop-color="#0a0f18"/>' +
-      '</radialGradient>' +
-      '</defs>' +
-      '<circle cx="32" cy="32" r="31.5" fill="url(#' + gid + 'g)"/>' +
-      // 内周のうっすらしたアクセントリング
-      '<circle cx="32" cy="32" r="22.5" fill="none" stroke="' + accent + '" stroke-width="1" opacity="0.18"/>' +
-      // 外周レティクルリング（一部途切れ）
-      '<circle cx="32" cy="32" r="30" fill="none" stroke="' + accent + '" stroke-width="1.4" ' +
-      'stroke-dasharray="34 10 60 10 34 40" opacity="0.85"/>' +
-      ticks +
-      '<text x="32" y="32" text-anchor="middle" dominant-baseline="central" ' +
-      'font-family="SFMono-Regular, Consolas, monospace" font-weight="600" ' +
-      'font-size="' + fontSize + '" letter-spacing="0.5" fill="#e8eef7">' + monogram(label != null ? label : seed) + '</text>' +
-      '</svg>'
+      '<div class="orb" style="' + style + '" aria-hidden="true">' +
+      '<span class="orb-b orb-b1"></span>' +
+      '<span class="orb-b orb-b2"></span>' +
+      '<span class="orb-b orb-b3"></span>' +
+      '<span class="orb-sheen"></span>' +
+      '</div>'
     );
   }
 
