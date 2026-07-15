@@ -224,6 +224,12 @@
         <p class="warning" id="auth-error" hidden></p>
         <button class="btn btn-primary" id="btn-auth-submit">ログイン</button>
 
+        <div id="google-block" hidden>
+          <div class="auth-divider"><span>または</span></div>
+          <button class="btn btn-ghost btn-icon-text" id="btn-google"><span data-icon="globe"></span><span class="btn-label">Googleアカウントでログイン</span></button>
+          <p class="hint">Googleでログインする場合も、設定（APIキー等）を暗号化するための<strong>データ保護用パスワード</strong>が必要です。上の「パスワード」欄に<strong>全端末で共通のパスワード（8文字以上）</strong>を入力してからこのボタンを押してください（IDの入力は不要）。</p>
+        </div>
+
         <div id="sync-import-block">
           <h3>別の端末から設定を移す</h3>
           <p class="hint">もう一方の端末（ログイン中）で書き出した同期ファイルを読み込み、同じID・パスワードでログインすると、APIキーを含む同じ設定でこの端末でも使えます。</p>

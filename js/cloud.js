@@ -52,6 +52,14 @@
     if (code.indexOf('weak-password') !== -1) return new Error('パスワードが弱すぎます。より長く複雑にしてください。');
     if (code.indexOf('too-many-requests') !== -1) return new Error('試行回数が多すぎます。しばらく待ってから再試行してください。');
     if (code.indexOf('network-request-failed') !== -1) return new Error('ネットワークに接続できません。通信環境を確認してください。');
+    if (code.indexOf('popup-closed-by-user') !== -1 || code.indexOf('cancelled-popup-request') !== -1) {
+      return new Error('Googleログインがキャンセルされました。');
+    }
+    if (code.indexOf('popup-blocked') !== -1) return new Error('ポップアップがブロックされました。ブラウザの設定でこのサイトのポップアップを許可してください。');
+    if (code.indexOf('unauthorized-domain') !== -1) {
+      return new Error('このサイトのドメインがFirebaseで承認されていません。Firebaseコンソールの Authentication → 設定 → 承認済みドメイン にこのサイトのドメインを追加してください。');
+    }
+    if (code.indexOf('operation-not-allowed') !== -1) return new Error('このログイン方法がFirebaseで有効化されていません。コンソールのログイン方法設定を確認してください。');
     return new Error('クラウド認証エラー: ' + (e.message || e));
   }
 
@@ -70,6 +78,17 @@
     try {
       const cred = await mods.auth.signInWithEmailAndPassword(auth, toEmail(id), password);
       return cred.user.uid;
+    } catch (e) {
+      throw translateError(e);
+    }
+  }
+
+  async function loginWithGoogle() {
+    await init();
+    try {
+      const provider = new mods.auth.GoogleAuthProvider();
+      const cred = await mods.auth.signInWithPopup(auth, provider);
+      return { uid: cred.user.uid, email: cred.user.email || '', name: cred.user.displayName || '' };
     } catch (e) {
       throw translateError(e);
     }
@@ -118,6 +137,7 @@
     init: init,
     register: register,
     login: login,
+    loginWithGoogle: loginWithGoogle,
     logout: logout,
     waitUser: waitUser,
     saveBlob: saveBlob,

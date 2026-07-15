@@ -136,6 +136,35 @@
     return id;
   }
 
+  /* Googleアカウントでログイン（クラウド有効時のみ）
+     暗号化鍵は「データ保護用パスワード」から導出する（全端末で共通のものを使う） */
+  async function loginGoogle(passphrase, initialSettings) {
+    if (!cloudEnabled()) throw new Error('Googleログインはクラウド同期が有効な場合のみ利用できます。');
+    if (String(passphrase || '').length < 8) {
+      throw new Error('パスワード欄に「データ保護用パスワード」（8文字以上・全端末で共通）を入力してからGoogleログインを押してください。');
+    }
+    const info = await window.Cloud.loginWithGoogle();
+    const key = await deriveKey(passphrase, await saltFromId('google-uid-v1:' + info.uid), true);
+    const box = await window.Cloud.loadBlob();
+    if (box && box.data) {
+      try {
+        await decrypt(key, box.data);
+      } catch (e) {
+        await window.Cloud.logout();
+        throw new Error('データ保護用パスワードが違います。初回に設定したものと同じパスワードを入力してください。');
+      }
+    }
+    currentId = info.email || ('google-' + info.uid.slice(0, 8));
+    currentKey = key;
+    if (!box || !box.data) {
+      // 初回ログイン: 現在の設定を初期値として暗号化保存
+      const data = await encrypt(key, JSON.stringify(initialSettings || {}));
+      await window.Cloud.saveBlob({ v: 1, data: data });
+    }
+    await persistSession(passphrase, currentId);
+    return currentId;
+  }
+
   /* タブを閉じるまでログイン状態を維持（sessionStorageに鍵素材を保持。恒久保存はしない） */
   async function persistSession(password, id) {
     try {
@@ -230,6 +259,7 @@
     isCloud: cloudEnabled,
     register: register,
     login: login,
+    loginGoogle: loginGoogle,
     logout: logout,
     resumeSession: resumeSession,
     saveSettings: saveSettings,

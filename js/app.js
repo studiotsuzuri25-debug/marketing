@@ -1129,9 +1129,10 @@
     $('#account-logged-out').hidden = loggedIn;
     $('#account-logged-in').hidden = !loggedIn;
     if (loggedIn) $('#account-current').textContent = Auth.currentId();
-    // クラウド有効時は同期ファイルのUIは不要
+    // クラウド有効時は同期ファイルのUIは不要、Googleログインはクラウド有効時のみ
     $('#sync-import-block').hidden = cloud;
     $('#btn-sync-export').hidden = cloud;
+    $('#google-block').hidden = !cloud;
     $('#cloud-status').innerHTML = cloud
       ? Icons.svg('globe') + ' クラウド同期: <strong>有効</strong> — 同じID・パスワードでどの端末（PC・タブレット・スマホのブラウザ）からでも利用できます。'
       : Icons.svg('lock') + ' クラウド同期: 無効 — アカウントはこの端末内に保存されます（別端末へは同期ファイルで移行）。';
@@ -1207,6 +1208,16 @@
       if (e.key === 'Enter' && authMode === 'login') submitAuth();
     });
     $('#btn-logout').addEventListener('click', doLogout);
+    $('#btn-google').addEventListener('click', async function () {
+      const pw = $('#auth-pw').value;
+      try {
+        await Auth.loginGoogle(pw, state.settings);
+        $('#auth-pw').value = '';
+        await afterAuthSuccess();
+      } catch (e) {
+        authFail(e.message || String(e));
+      }
+    });
     $('#btn-sync-export').addEventListener('click', function () {
       try {
         downloadBlob(Auth.exportFile(), 'application/json;charset=utf-8', 'agent-market-lab-sync_' + fileStamp() + '.json');
