@@ -73,6 +73,8 @@
       <h2 id="setup-title">分析したい内容を入力してください</h2>
       <div id="competitor-fields" hidden>
         <p class="hint" id="competitor-hint"></p>
+        <label class="field-label">分析の主役にする自社情報（メイン）</label>
+        <select id="main-profile-select" class="main-profile-select"></select>
         <label class="field-label">競合の指定（任意・改行またはカンマ区切りで複数可）</label>
         <textarea id="competitor-input" rows="2" placeholder="例: 競合サロンA / 株式会社◯◯ / https://competitor.example.com"></textarea>
         <p class="hint">未入力の場合は、エージェントが市場・エリア内から競合を自動的に探して比較します。</p>
@@ -225,10 +227,12 @@
       <button class="modal-close" data-close="profile-modal" title="閉じる"><span data-icon="x"></span></button>
     </div>
     <div class="modal-body">
-      <p class="hint">競合分析の精度を高めるための情報です。質問に答える形式で入力してください。<strong>わからない項目は空欄のままでOK</strong>です。ここで登録した内容は、他の設定と同様に暗号化して保存されます。</p>
+      <p class="hint">競合分析の精度を高めるための情報です。複数の会社・店舗・事業を登録できます。上のタブで切り替え・追加してください。<strong>わからない項目は空欄のままでOK</strong>。内容は他の設定と同様に暗号化して保存されます。</p>
+      <div id="profile-tabs" class="profile-tabs"><!-- JSで生成 --></div>
       <div id="profile-fields"><!-- JSで生成 --></div>
     </div>
-    <div class="modal-footer">
+    <div class="modal-footer profile-footer">
+      <button class="btn btn-danger btn-icon-text" id="btn-delete-profile" hidden><span data-icon="trash"></span><span class="btn-label">この自社情報を削除</span></button>
       <button class="btn btn-primary" id="btn-save-profile">保存</button>
     </div>
   </div>

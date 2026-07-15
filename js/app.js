@@ -62,25 +62,42 @@
     { key: 'goal', q: 'この分析で達成したいことは？', ph: '例: 競合との差別化、新規客の獲得' },
   ];
 
+  /* 登録済みの自社情報（複数） */
+  function allProfiles() {
+    return (state.settings && Array.isArray(state.settings.profiles)) ? state.settings.profiles : [];
+  }
+  function profileLabel(p, idx) {
+    return (p && (p.name || '').trim()) || ('自社' + (idx + 1));
+  }
+  function profileIsFilled(p) {
+    return PROFILE_QUESTIONS.some(function (q) { return (p[q.key] || '').trim(); });
+  }
+  /* 競合分析でメインに選ばれた自社情報（未指定なら先頭） */
+  function mainProfile() {
+    const list = allProfiles();
+    if (!list.length) return {};
+    const found = list.filter(function (p) { return p.id === state.mainProfileId; })[0];
+    return found || list[0];
+  }
+  /* 後方互換のため単一取得は mainProfile を返す */
   function loadProfile() {
-    return (state.settings && state.settings.profile) || {};
+    return mainProfile();
   }
-  function profileFilledCount() {
-    const p = loadProfile();
-    return PROFILE_QUESTIONS.filter(function (q) { return (p[q.key] || '').trim(); }).length;
-  }
-  function profileToText() {
-    const p = loadProfile();
+  function profileToTextOf(p) {
     const lines = PROFILE_QUESTIONS
       .filter(function (q) { return (p[q.key] || '').trim(); })
       .map(function (q) { return '- ' + q.q + ' → ' + p[q.key].trim(); });
     return lines.length ? lines.join('\n') : '';
+  }
+  function profileToText() {
+    return profileToTextOf(mainProfile());
   }
 
   /* ============ 状態 ============ */
   const state = {
     settings: loadSettings(),
     mode: 'market',
+    mainProfileId: null,
     competitors: '',
     topic: '',
     level: 2,
@@ -117,9 +134,15 @@
     let b = '';
     if (state.mode === 'competitor') {
       b += '\n\n【分析モード】自社と競合の比較分析\n';
-      const prof = profileToText();
+      const main = mainProfile();
+      const prof = profileToTextOf(main);
       if (prof) {
-        b += '■ 自社情報（登録済み。これを分析の起点にする）:\n' + prof + '\n';
+        b += '■ 分析の主役（メイン）とする自社情報 = 「' + profileLabel(main, 0) + '」。これを起点に、影響する競合を分析する:\n' + prof + '\n';
+        const others = allProfiles().filter(function (p) { return p.id !== main.id && profileIsFilled(p); });
+        if (others.length) {
+          b += '■ 同一オーナーの他の登録事業/店舗（参考。混同しないこと）: ' +
+            others.map(function (p, i) { return profileLabel(p, i); }).join('、') + '\n';
+        }
       } else {
         b += '■ 自社情報は未登録です。テーマ本文から自社の状況を読み取ってください。\n';
       }
@@ -162,13 +185,23 @@
   }
 
   function mergeSettings(s) {
-    const defaults = { provider: 'demo', concurrency: 4, notify: true, autoResearch: true, keys: {}, models: {}, profile: {} };
+    const defaults = { provider: 'demo', concurrency: 4, notify: true, autoResearch: true, keys: {}, models: {}, profiles: [] };
     s = s || {};
-    return Object.assign(defaults, s, {
+    const merged = Object.assign(defaults, s, {
       keys: Object.assign({}, s.keys),
       models: Object.assign({}, s.models),
-      profile: Object.assign({}, s.profile),
+      profiles: Array.isArray(s.profiles) ? s.profiles.slice() : [],
     });
+    // 旧形式（単一 profile）を配列へ移行
+    if ((!merged.profiles.length) && s.profile && Object.keys(s.profile).length) {
+      merged.profiles = [Object.assign({ id: 'p_legacy' }, s.profile)];
+    }
+    // 各プロフィールにidを付与
+    merged.profiles = merged.profiles.map(function (p, i) {
+      return Object.assign({ id: p.id || ('p_' + i + '_' + (p.name || '').slice(0, 6)) }, p);
+    });
+    delete merged.profile;
+    return merged;
   }
   function loadSettings() {
     try {
@@ -861,6 +894,10 @@
     state.level = parseInt(levelInput ? levelInput.value : '2', 10);
     state.topic = topic;
     state.competitors = (state.mode === 'competitor') ? ($('#competitor-input').value || '').trim() : '';
+    if (state.mode === 'competitor') {
+      const mps = $('#main-profile-select');
+      if (mps && mps.value) state.mainProfileId = mps.value;
+    }
     state.sourceDigest = Sources.buildDigest(LEVELS[state.level].sourceChars);
     state.sourceNames = Sources.listNames();
     state.researchDigest = '';
@@ -1491,10 +1528,35 @@
   }
 
   function updateProfileStatus() {
-    const n = profileFilledCount();
+    const list = allProfiles();
     const el = $('#profile-status');
     if (!el) return;
-    el.textContent = n ? '自社情報: ' + n + ' / ' + PROFILE_QUESTIONS.length + ' 項目を登録済み' : '自社情報は未登録です（競合分析でより精度が上がります）';
+    el.textContent = list.length
+      ? '登録済みの自社情報: ' + list.length + '件（' + list.map(profileLabel).join('、').slice(0, 60) + '）'
+      : '自社情報は未登録です（競合分析でより精度が上がります）';
+  }
+
+  function genId() {
+    return 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  function populateMainProfileSelect() {
+    const sel = $('#main-profile-select');
+    if (!sel) return;
+    const list = allProfiles();
+    if (!list.length) {
+      sel.innerHTML = '<option value="">（自社情報が未登録）</option>';
+      sel.disabled = true;
+      return;
+    }
+    sel.disabled = false;
+    if (!state.mainProfileId || !list.some(function (p) { return p.id === state.mainProfileId; })) {
+      state.mainProfileId = list[0].id;
+    }
+    sel.innerHTML = list.map(function (p, i) {
+      return '<option value="' + p.id + '"' + (p.id === state.mainProfileId ? ' selected' : '') + '>' +
+        escapeText(profileLabel(p, i)) + '</option>';
+    }).join('');
   }
 
   function selectMode(mode) {
@@ -1506,9 +1568,10 @@
     $('#competitor-fields').hidden = !isComp;
     if (isComp) {
       $('#setup-title').textContent = '自社と競合の分析';
-      const n = profileFilledCount();
-      $('#competitor-hint').textContent = n
-        ? '登録済みの自社情報（' + n + '項目）を基に競合と比較します。下のテーマ欄には分析の狙いを書いてください。'
+      populateMainProfileSelect();
+      const list = allProfiles();
+      $('#competitor-hint').textContent = list.length
+        ? '分析の主役にする自社情報（メイン）を選ぶと、その事業に影響する競合を重点的に分析します。'
         : '自社情報が未登録です。メニューに戻って登録するか、下のテーマ欄に自社の情報を詳しく書いてください。';
       $('#topic-input').placeholder = '例: 渋谷エリアで競合エステサロンと比較し、差別化ポイントと集客改善策を知りたい';
     } else {
@@ -1518,8 +1581,27 @@
     window.scrollTo({ top: 0 });
   }
 
+  /* ---- 自社情報モーダル（複数対応） ---- */
+  let editingProfileId = null;
+
+  function renderProfileTabs() {
+    const list = allProfiles();
+    const tabs = $('#profile-tabs');
+    const isExisting = list.some(function (p) { return p.id === editingProfileId; });
+    let html = list.map(function (p, i) {
+      return '<button type="button" class="profile-tab' + (p.id === editingProfileId ? ' active' : '') +
+        '" data-profile-id="' + p.id + '">' + escapeText(profileLabel(p, i)) + '</button>';
+    }).join('');
+    // 新規作成中（まだ未保存のドラフト）は「新規」タブを表示
+    if (!isExisting) html += '<button type="button" class="profile-tab active" data-profile-id="' + editingProfileId + '">新規</button>';
+    html += '<button type="button" class="profile-tab profile-tab-add" data-profile-add>＋ 追加</button>';
+    tabs.innerHTML = html;
+    $('#btn-delete-profile').hidden = !isExisting;
+  }
+
   function renderProfileForm() {
-    const p = loadProfile();
+    const list = allProfiles();
+    const p = list.filter(function (x) { return x.id === editingProfileId; })[0] || {};
     $('#profile-fields').innerHTML = PROFILE_QUESTIONS.map(function (q) {
       return '<div class="field"><label>' + escapeText(q.q) + '</label>' +
         '<input type="text" data-profile="' + q.key + '" placeholder="' + escapeText(q.ph) + '" value="' +
@@ -1527,16 +1609,75 @@
     }).join('');
   }
 
-  function saveProfile() {
-    const p = {};
+  function openProfileModal() {
+    const list = allProfiles();
+    editingProfileId = list.length ? list[0].id : genId();
+    renderProfileTabs();
+    renderProfileForm();
+    Icons.hydrate($('#profile-modal'));
+    openModal('profile-modal');
+  }
+
+  /* 現在フォームの入力を収集（idは編集中のもの） */
+  function collectProfileForm() {
+    const p = { id: editingProfileId };
     document.querySelectorAll('[data-profile]').forEach(function (input) {
       const v = input.value.trim();
       if (v) p[input.dataset.profile] = v;
     });
-    state.settings.profile = p;
+    return p;
+  }
+
+  function commitCurrentProfile() {
+    const list = allProfiles().slice();
+    const p = collectProfileForm();
+    const idx = list.findIndex(function (x) { return x.id === p.id; });
+    // 全項目空なら保存しない（新規追加時の空カード防止）
+    const filled = profileIsFilled(p);
+    if (idx === -1) {
+      if (filled) list.push(p);
+    } else {
+      if (filled) list[idx] = p; else list.splice(idx, 1);
+    }
+    state.settings.profiles = list;
+  }
+
+  function saveProfile() {
+    commitCurrentProfile();
     saveSettings();
     updateProfileStatus();
     closeModal('profile-modal');
+  }
+
+  function setupProfileModalEvents() {
+    $('#profile-tabs').addEventListener('click', function (e) {
+      const addBtn = e.target.closest('[data-profile-add]');
+      if (addBtn) {
+        commitCurrentProfile();          // 編集中を保存してから
+        editingProfileId = genId();      // 新規ドラフト
+        renderProfileTabs();
+        renderProfileForm();
+        return;
+      }
+      const tab = e.target.closest('[data-profile-id]');
+      if (tab && tab.dataset.profileId !== editingProfileId) {
+        commitCurrentProfile();
+        editingProfileId = tab.dataset.profileId;
+        renderProfileTabs();
+        renderProfileForm();
+      }
+    });
+    $('#btn-delete-profile').addEventListener('click', function () {
+      if (!editingProfileId) return;
+      if (!confirm('この自社情報を削除しますか？')) return;
+      const remaining = allProfiles().filter(function (p) { return p.id !== editingProfileId; });
+      state.settings.profiles = remaining;
+      editingProfileId = remaining.length ? remaining[0].id : genId();
+      saveSettings();
+      renderProfileTabs();
+      renderProfileForm();
+      updateProfileStatus();
+    });
   }
 
   function goHome() {
@@ -1552,12 +1693,11 @@
     });
     $('#btn-home').addEventListener('click', goHome);
     $('#btn-back-menu').addEventListener('click', showMenu);
-    $('#btn-open-profile').addEventListener('click', function () {
-      renderProfileForm();
-      Icons.hydrate($('#profile-modal'));
-      openModal('profile-modal');
-    });
+    $('#btn-open-profile').addEventListener('click', openProfileModal);
     $('#btn-save-profile').addEventListener('click', saveProfile);
+    setupProfileModalEvents();
+    const mps = $('#main-profile-select');
+    if (mps) mps.addEventListener('change', function () { state.mainProfileId = mps.value; });
     updateProfileStatus();
   }
 
