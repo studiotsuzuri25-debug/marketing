@@ -211,8 +211,12 @@
     const names = {};
     const ex = String(exclude || '');
     const patterns = [
+      // 業種語で終わる固有名詞
       /([一-龠ぁ-んァ-ヴA-Za-z0-9＆&'’\-]{2,20}(?:サロン|エステ|エステティック|クリニック|スタジオ|ジム|株式会社|有限会社))/g,
-      /(?:^|\n)\s*[0-9０-９]+[\.\)．]\s*([一-龠ぁ-んァ-ヴA-Za-z0-9＆&'’\- ]{2,24})/g,
+      // 番号付きリスト（1行に複数並んでいても各項目を拾う）
+      /[0-9０-９]{1,2}[\.\)．]\s*([^0-9０-９。、\n]{2,24})/g,
+      // 「」で囲まれた固有名詞
+      /[「『]([^」』\n]{2,24})[」』]/g,
     ];
     patterns.forEach(function (re) {
       let m;
@@ -224,7 +228,41 @@
         names[n] = (names[n] || 0) + 1;
       }
     });
-    return Object.keys(names).sort(function (a, b) { return names[b] - names[a]; }).slice(0, max);
+    let keys = Object.keys(names).sort(function (a, b) { return names[b] - names[a]; });
+    // 他の候補の部分文字列になっている断片（例:「ションサロン」）を除去
+    keys = keys.filter(function (a) {
+      return !keys.some(function (b) { return b !== a && b.length > a.length && b.indexOf(a) !== -1; });
+    });
+    return keys.slice(0, max);
+  }
+
+  /**
+   * 競合・店舗を「列挙」するための専用検索。一覧・比較・ランキング系のクエリで
+   * 複数の候補名を確実に集める（初回の一般調査の成否に依存しない）。
+   * @returns {Promise<{text, names}>}
+   */
+  async function findCompetitors(topic, area, signal) {
+    const t = String(topic || '').replace(/\s+/g, ' ').slice(0, 50);
+    const ap = area ? area + ' ' : '';
+    const queries = [
+      ap + t + ' おすすめ 比較 人気',
+      ap + t + ' ランキング 一覧',
+      ap + t + ' 口コミ 評判 比較',
+      t + ' 主要 企業 ブランド 一覧',
+    ];
+    const texts = [];
+    let idx = 0;
+    async function lane() {
+      while (idx < queries.length) {
+        if (signal && signal.aborted) return;
+        const q = queries[idx++];
+        try { const r = await researchQuery(q, signal); if (r) texts.push(r.content); }
+        catch (e) { if (e.name === 'AbortError') return; }
+      }
+    }
+    await Promise.all([lane(), lane()]);
+    const text = texts.join('\n\n');
+    return { text: text, names: extractCandidateNames(text, 20, topic) };
   }
 
   /**
@@ -326,5 +364,5 @@
     return { digest: digest, results: results, failed: failed, images: images };
   }
 
-  window.Research = { run: run, deepDive: deepDive, extractCandidateNames: extractCandidateNames };
+  window.Research = { run: run, deepDive: deepDive, findCompetitors: findCompetitors, extractCandidateNames: extractCandidateNames };
 })();
