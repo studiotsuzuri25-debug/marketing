@@ -206,6 +206,68 @@
     return ordered.slice(0, Math.max(3, count));
   }
 
+  /* 収集テキストから店舗・競合の候補名をヒューリスティックに抽出（AIが使えない場合のフォールバック） */
+  function extractCandidateNames(text, max, exclude) {
+    const names = {};
+    const ex = String(exclude || '');
+    const patterns = [
+      /([一-龠ぁ-んァ-ヴA-Za-z0-9＆&'’\-]{2,20}(?:サロン|エステ|エステティック|クリニック|スタジオ|ジム|株式会社|有限会社))/g,
+      /(?:^|\n)\s*[0-9０-９]+[\.\)．]\s*([一-龠ぁ-んァ-ヴA-Za-z0-9＆&'’\- ]{2,24})/g,
+    ];
+    patterns.forEach(function (re) {
+      let m;
+      while ((m = re.exec(text)) && Object.keys(names).length < max * 4) {
+        const n = (m[1] || '').trim().replace(/\s+/g, ' ');
+        if (n.length < 3 || n.length > 24) continue;
+        if (/^(市場|競合|口コミ|ランキング|一覧|人気|おすすめ|エリア|比較|評判|料金|サービス|詳細|情報)/.test(n)) continue;
+        if (ex && ex.indexOf(n) !== -1) continue; // テーマ文に含まれる語（一般語）は除外
+        names[n] = (names[n] || 0) + 1;
+      }
+    });
+    return Object.keys(names).sort(function (a, b) { return names[b] - names[a]; }).slice(0, max);
+  }
+
+  /**
+   * 発見した競合・店舗を1件ずつ個別に深掘り調査する。
+   * 各名称について「口コミ・評判・料金・サービス・公式」をまとめて検索する。
+   * @returns {Promise<{digest, count, images, names}>}
+   */
+  async function deepDive(names, area, totalCap, signal, onProgress) {
+    const list = (names || []).filter(Boolean).slice(0, 8);
+    if (!list.length) return { digest: '', count: 0, images: [], names: [] };
+    const areaPrefix = area ? area + ' ' : '';
+    const results = [];
+    let idx = 0, done = 0;
+    async function lane() {
+      while (idx < list.length) {
+        if (signal && signal.aborted) return;
+        const name = list[idx++];
+        try {
+          const r = await researchQuery(areaPrefix + name + ' 口コミ 評判 料金 サービス 特徴 公式', signal);
+          if (r) results.push({ name: name, content: r.content });
+        } catch (e) { if (e.name === 'AbortError') return; }
+        done++;
+        if (onProgress) onProgress(done, list.length);
+      }
+    }
+    await Promise.all([lane(), lane(), lane()]);
+    if (!results.length) return { digest: '', count: 0, images: [], names: [] };
+
+    // 画像抽出
+    const imgSet = {};
+    const imgRe = /(https:\/\/[^\s)"']+\.(?:jpg|jpeg|png|webp))(?:\?[^\s)"']*)?/gi;
+    results.forEach(function (r) { let m; while ((m = imgRe.exec(r.content)) && Object.keys(imgSet).length < 16) imgSet[m[1]] = 1; });
+    const images = Object.keys(imgSet).filter(function (u) { return !/(sprite|icon|logo|avatar|pixel|favicon|\.svg)/i.test(u); }).slice(0, 10);
+
+    const perCap = Math.max(1500, Math.floor(totalCap / results.length));
+    const digest = '【競合・店舗の個別深掘り調査（各社ごと）】\n' + results.map(function (r, i) {
+      let c = r.content;
+      if (c.length > perCap) c = c.slice(0, perCap) + '\n…（省略）';
+      return '=== 競合' + (i + 1) + '：' + r.name + ' ===\n' + c;
+    }).join('\n\n');
+    return { digest: digest, count: results.length, images: images, names: results.map(function (r) { return r.name; }) };
+  }
+
   /**
    * 自律リサーチを実行
    * @returns {Promise<{digest:string, results:Array<{query,via}>, failed:number}>}
@@ -262,5 +324,5 @@
     return { digest: digest, results: results, failed: failed, images: images };
   }
 
-  window.Research = { run: run };
+  window.Research = { run: run, deepDive: deepDive, extractCandidateNames: extractCandidateNames };
 })();

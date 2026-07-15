@@ -95,6 +95,7 @@
     researchDigest: '',
     researchCount: 0,
     researchImages: [],
+    competitorNames: [],
     historyId: null,
     usage: null,
   };
@@ -381,6 +382,49 @@
   function openModal(id) { $('#' + id).hidden = false; }
   function closeModal(id) { $('#' + id).hidden = true; }
 
+  /* ============ 競合の特定（複数） ============ */
+  async function discoverCompetitors(digest, area, signal) {
+    // ユーザー指定の競合は必ず対象に含める
+    const seeds = state.competitors
+      ? state.competitors.split(/[\n,、･・]+/).map(function (s) { return s.trim(); }).filter(Boolean)
+      : [];
+
+    // デモや失敗時はヒューリスティック抽出でフォールバック
+    if (state.settings.provider === 'demo' || !digest) {
+      return dedupeNames(seeds.concat(Research.extractCandidateNames(digest || '', 8, state.topic)), 8);
+    }
+    try {
+      const sys = 'あなたは競合リサーチのアシスタントです。指定されたJSON配列のみを出力し、説明文は出力しません。';
+      const prompt =
+        '次の「テーマ」と「Web調査結果」から、分析対象テーマの競合となる実在の企業・店舗・ブランド名を最大8件、重複なく抽出してください。\n' +
+        (area ? 'エリア: ' + area + '（このエリアの実店舗を優先）\n' : '') +
+        'テーマ: ' + state.topic + '\n\n' +
+        'Web調査結果:\n' + digest.slice(0, 12000) + '\n\n' +
+        '出力形式（実在が読み取れる固有名詞のみ。一般語・カテゴリ名は除外）:\n["店舗A","株式会社B",...]';
+      const text = await AI.call({
+        provider: state.settings.provider, apiKey: currentKey(), model: currentModel(),
+        system: sys, prompt: prompt, maxTokens: 500, signal: signal, onUsage: recordUsage,
+      });
+      const start = text.indexOf('['), end = text.lastIndexOf(']');
+      let arr = [];
+      if (start !== -1 && end !== -1) arr = JSON.parse(text.slice(start, end + 1));
+      arr = arr.filter(function (x) { return typeof x === 'string' && x.trim(); }).map(function (x) { return x.trim(); });
+      const merged = dedupeNames(seeds.concat(arr), 8);
+      return merged.length ? merged : dedupeNames(seeds.concat(Research.extractCandidateNames(digest, 8, state.topic)), 8);
+    } catch (e) {
+      if (signal.aborted) throw e;
+      return dedupeNames(seeds.concat(Research.extractCandidateNames(digest, 8, state.topic)), 8);
+    }
+  }
+  function dedupeNames(arr, max) {
+    const seen = {}, out = [];
+    arr.forEach(function (n) {
+      const k = n.replace(/\s+/g, '').toLowerCase();
+      if (n.length >= 2 && n.length <= 30 && !seen[k]) { seen[k] = 1; out.push(n); }
+    });
+    return out.slice(0, max);
+  }
+
   /* ============ チーム編成 ============ */
   async function planTeam(topic, count, signal) {
     if (state.settings.provider === 'demo') {
@@ -468,17 +512,28 @@
       ? '\nGoogle検索については、自動調査の「Google検索サジェスト」（実際に検索されている関連キーワード）と「Googleトレンド」データを根拠に、検索需要の高いキーワード、検索意図の分類（情報収集/比較検討/購入直前）、優先的に狙うべきキーワード戦略を分析してください。' +
         'AI検索については、ユーザーがChatGPT・Gemini等のAIに尋ねそうな質問例と、AIが提示しがちな回答・推奨の傾向、AIの回答で選ばれる（引用される）ために有効な施策を分析してください。この部分は実測データではなくAIモデルの知見に基づく分析であることを必ず明記してください。'
       : '';
+    // 競合・店舗が複数特定されている場合、1社に絞らず全社を対象にするよう明示
+    const compExtra = (state.competitorNames && state.competitorNames.length && /競合|比較|ブランド|市場|SNS|Instagram|顧客|価格|チャネル/.test(agent.role + agent.focus))
+      ? '\n【重要】今回のWeb調査で次の競合・店舗が個別に調査されています。1社だけに絞らず、これら全てを対象に比較・分析してください: ' +
+        state.competitorNames.join(' / ') +
+        '\n各競合について、料金・サービス・強み弱み・立地・SNSなどを個別に触れ、可能な限り表で横比較してください。'
+      : '';
     const prompt =
       '【分析テーマ】\n' + state.topic +
       contextBlock() +
       sourceBlock(lv.sourceChars) + '\n\n' +
-      '【指示】\nあなたの担当領域「' + agent.role + '」の観点からこのテーマを分析し、報告してください。' + snsExtra + kwExtra + '\n' +
-      lv.instruction + '\n\n最後に「**結論:**」として担当領域からの最重要メッセージを1〜2文で述べ、' +
+      '【指示】\nあなたの担当領域「' + agent.role + '」の観点からこのテーマを分析し、報告してください。' + snsExtra + kwExtra + compExtra + '\n' +
+      lv.instruction + '\n\n' +
+      '【根拠の提示（必須・最重要）】\n' +
+      '- すべての主要な主張には、必ず具体的な根拠（数値・固有名詞・事例・出典）を添えること。「〜と考えられる」だけで終わらせない。\n' +
+      '- Web調査結果（自動調査N・競合N）や資料に書かれている事実は、該当する数字・文言を引用し、出典番号とURLを併記する。\n' +
+      '- 主張→根拠→示唆（だから何が言えるか）の順で、論理をつなげて書く。\n' +
+      '- 推測は「推測」、未確認は「未確認」、データが無い数値は「推定」と明記し、事実と区別する（虚偽・捏造は絶対禁止）。\n\n' +
+      '最後に「**結論:**」として担当領域からの最重要メッセージを1〜2文で述べ、' +
       'その後に必ず「**根拠・出典:**」セクションを設けて次を箇条書きで明記してください。\n' +
-      '- 参照した資料・自動調査（資料番号/自動調査番号・名称・URL）と、そこから得た情報\n' +
+      '- 参照した資料・自動調査・競合調査（番号・名称・URL）と、そこから得た具体的な事実・数値\n' +
       '- AIの学習知識に基づく部分（その旨を明記）\n' +
-      '- 推定・仮説の部分（推定の考え方も簡潔に）\n' +
-      '出典が確認できない数値は「推定」または「未確認」と必ず表記してください。';
+      '- 推定・仮説の部分（推定の根拠・考え方も簡潔に）';
 
     // レート制限(429)は待ち時間を読み取って粘り強くリトライする
     const maxAttempts = 5;
@@ -586,7 +641,8 @@
       '2. エグゼクティブサマリー（冒頭に必ずKPIカードを置き、結論・推奨アクションを先に述べる）\n' +
       '3. 市場環境分析（市場規模・成長率の時系列グラフ、セグメント別構成、PEST/マクロtrend）\n' +
       '4. 顧客・ターゲット分析（ペルソナ、ニーズ、カスタマージャーニー）\n' +
-      '5. 競合分析（競合比較表、ポジショニングマップ=radar/散布、シェア構成=pie/donut。' + (state.mode === 'competitor' ? '自社と競合の項目別比較表を必ず入れる' : '主要プレイヤーの比較') + '）\n' +
+      '5. 競合分析（競合比較表、ポジショニングマップ=radar、シェア構成=pie/donut。' + (state.mode === 'competitor' ? '自社と競合の項目別比較表を必ず入れる' : '主要プレイヤーの比較') +
+      (state.competitorNames && state.competitorNames.length ? '。今回個別調査した次の競合を1社も欠かさず比較表に含めること: ' + state.competitorNames.join(' / ') : '') + '）\n' +
       '6. SNS・Instagramトレンド分析（人気ハッシュタグ・投稿傾向・言及数推移グラフ）\n' +
       '7. 検索キーワード・AI検索トレンド分析（需要キーワード表、検索意図の分類）\n' +
       '8. フレームワーク分析（3C・SWOT/クロスSWOT・4P・ファイブフォース等を該当レベルに応じて）\n' +
@@ -856,8 +912,35 @@
           state.researchDigest = research.digest;
           state.researchCount = research.results.length;
           state.researchImages = research.images || [];
+          state.competitorNames = [];
+
+          // 競合・店舗を複数特定し、それぞれを個別に深掘り調査する
+          try {
+            setPhase('競合・店舗を特定して個別に深掘り調査中…', 6, 'crosshair');
+            const area = (loadProfile().area || '').trim();
+            const names = await discoverCompetitors(research.digest, area, signal);
+            if (!signal.aborted && names.length) {
+              const deep = await Research.deepDive(
+                names, area, LEVELS[state.level].researchChars, signal,
+                function (done, total) {
+                  $('#progress-text').textContent = '競合を個別調査中: ' + done + ' / ' + total + ' 社';
+                }
+              );
+              if (!signal.aborted && deep.count) {
+                state.researchDigest += '\n\n' + deep.digest;
+                state.researchCount += deep.count;
+                state.researchImages = (state.researchImages || []).concat(deep.images || []);
+                state.competitorNames = deep.names;
+              }
+            }
+          } catch (e) {
+            if (signal.aborted) return;
+            console.warn('競合深掘りに失敗（通常調査で続行）:', e);
+          }
+
           $('#run-topic').textContent += '｜自動調査 ' + state.researchCount + '件' +
-            (research.failed ? '（' + research.failed + '件取得失敗）' : '');
+            (state.competitorNames.length ? '（競合' + state.competitorNames.length + '社を個別調査）' : '') +
+            (research.failed ? '（' + research.failed + '件失敗）' : '');
         } catch (e) {
           if (signal.aborted) return;
           console.warn('自律リサーチに失敗しました（学習知識ベースで続行）:', e);
@@ -981,6 +1064,7 @@
         finalReport: state.finalReport,
         sourceNames: state.sourceNames,
         researchCount: state.researchCount,
+        competitorNames: state.competitorNames,
         usage: state.usage,
         agents: snapshotAgents(),
         synth: state.synth ? {
@@ -1043,6 +1127,7 @@
     state.sourceDigest = '';
     state.researchDigest = '';
     state.researchCount = entry.researchCount || 0;
+    state.competitorNames = entry.competitorNames || [];
     state.usage = entry.usage || null;
     state.agents = (entry.agents || []).map(function (a, i) {
       return Object.assign({ id: i, report: '', error: '' }, a);
