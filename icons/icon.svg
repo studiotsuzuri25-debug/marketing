@@ -1,18 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#4f8cff"/>
-      <stop offset="1" stop-color="#2a4fd0"/>
+      <stop offset="0" stop-color="#eaf3ff"/>
+      <stop offset="1" stop-color="#f4f0ff"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3aa0ff"/>
+      <stop offset="1" stop-color="#7c5cff"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="#0e1117"/>
-  <rect x="24" y="24" width="464" height="464" rx="96" fill="url(#bg)"/>
-  <g transform="translate(112, 112)" fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
-    <!-- botピクトグラム (24x24 を 12倍) -->
-    <rect x="36" y="132" width="216" height="120" rx="24"/>
-    <circle cx="144" cy="60" r="24"/>
-    <path d="M144 84v48"/>
-    <line x1="96" y1="192" x2="96" y2="192"/>
-    <line x1="192" y1="192" x2="192" y2="192"/>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <g transform="translate(256,256)">
+    <!-- レーダーのリング（調査・分析） -->
+    <circle cx="0" cy="0" r="176" fill="none" stroke="url(#mark)" stroke-width="20" opacity="0.32"/>
+    <circle cx="0" cy="0" r="110" fill="none" stroke="url(#mark)" stroke-width="17" opacity="0.5"/>
+    <!-- レーダーのスイープ（速さ・SF） -->
+    <path d="M0 0 L0 -176 A176 176 0 0 1 152 -88 Z" fill="url(#mark)" opacity="0.26"/>
+    <!-- 上昇する成長ライン（分析・市場） -->
+    <polyline points="-98,64 -34,0 22,28 96,-66" fill="none" stroke="#1f6bd6" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="96" cy="-66" r="24" fill="#1f6bd6"/>
+    <circle cx="0" cy="0" r="20" fill="url(#mark)"/>
   </g>
 </svg>
