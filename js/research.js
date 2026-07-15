@@ -233,7 +233,7 @@
    * @returns {Promise<{digest, count, images, names}>}
    */
   async function deepDive(names, area, totalCap, signal, onProgress) {
-    const list = (names || []).filter(Boolean).slice(0, 8);
+    const list = (names || []).filter(Boolean).slice(0, 20);
     if (!list.length) return { digest: '', count: 0, images: [], names: [] };
     const areaPrefix = area ? area + ' ' : '';
     const results = [];
@@ -250,7 +250,9 @@
         if (onProgress) onProgress(done, list.length);
       }
     }
-    await Promise.all([lane(), lane(), lane()]);
+    // 件数が多い場合は並列数を増やして時間を短縮（最大4並列）
+    const lanes = Math.min(4, Math.max(2, Math.ceil(list.length / 5)));
+    await Promise.all(Array.from({ length: lanes }, function () { return lane(); }));
     if (!results.length) return { digest: '', count: 0, images: [], names: [] };
 
     // 画像抽出

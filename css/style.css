@@ -113,7 +113,15 @@ h1, h2, h3 { line-height: 1.35; font-weight: 600; }
   box-shadow: 0 1px 0 var(--accent-soft);
   position: sticky; top: 0; z-index: 20;
 }
-.brand { display: flex; align-items: center; gap: 12px; }
+.brand {
+  display: flex; align-items: center; gap: 12px;
+  background: none; border: none; padding: 4px 6px; margin: -4px -6px;
+  cursor: pointer; color: inherit; text-align: left; border-radius: var(--radius-sm);
+  transition: background .15s;
+  font: inherit;
+}
+.brand:hover { background: var(--accent-soft); }
+.brand:hover .brand-icon { box-shadow: var(--glow); }
 .brand-icon {
   width: 40px; height: 40px; border-radius: var(--radius-sm); color: var(--accent);
   background: var(--accent-soft);

@@ -152,7 +152,11 @@
         'エリア内の実在する店舗・競合・Instagramアカウント・口コミが含まれることがあります。これを最重要かつ最新の一次情報として分析に使ってください。' +
         '引用時は出典として「自動調査N」と該当URLを必ず明記してください。実在が確認できた店舗名・アカウント名・URLは具体的に報告してください。' +
         '一方で、検索結果は不正確・古い場合もあるため、断定を避け、確認できない事項は「未確認」と明記してください（虚偽・捏造は絶対禁止）。\n\n' +
-        state.researchDigest;
+        // 競合が多いと肥大化するため、プロンプトへ入れる調査ダイジェストは上限で丸める
+        (function () {
+          const cap = Math.max(6000, (maxChars || 12000) * 2);
+          return state.researchDigest.length > cap ? state.researchDigest.slice(0, cap) + '\n…（調査結果が長いため以降省略）' : state.researchDigest;
+        })();
     }
     return block;
   }
@@ -383,6 +387,7 @@
   function closeModal(id) { $('#' + id).hidden = true; }
 
   /* ============ 競合の特定（複数） ============ */
+  const MAX_COMPETITORS = 20;
   async function discoverCompetitors(digest, area, signal) {
     // ユーザー指定の競合は必ず対象に含める
     const seeds = state.competitors
@@ -391,29 +396,29 @@
 
     // デモや失敗時はヒューリスティック抽出でフォールバック
     if (state.settings.provider === 'demo' || !digest) {
-      return dedupeNames(seeds.concat(Research.extractCandidateNames(digest || '', 8, state.topic)), 8);
+      return dedupeNames(seeds.concat(Research.extractCandidateNames(digest || '', MAX_COMPETITORS, state.topic)), MAX_COMPETITORS);
     }
     try {
       const sys = 'あなたは競合リサーチのアシスタントです。指定されたJSON配列のみを出力し、説明文は出力しません。';
       const prompt =
-        '次の「テーマ」と「Web調査結果」から、分析対象テーマの競合となる実在の企業・店舗・ブランド名を最大8件、重複なく抽出してください。\n' +
-        (area ? 'エリア: ' + area + '（このエリアの実店舗を優先）\n' : '') +
+        '次の「テーマ」と「Web調査結果」から、分析対象テーマの競合となる実在の企業・店舗・ブランド名を、できるだけ多く（最大' + MAX_COMPETITORS + '件）重複なく抽出してください。\n' +
+        (area ? 'エリア: ' + area + '（このエリアの実店舗を優先し、可能な限り網羅的に）\n' : '') +
         'テーマ: ' + state.topic + '\n\n' +
-        'Web調査結果:\n' + digest.slice(0, 12000) + '\n\n' +
+        'Web調査結果:\n' + digest.slice(0, 16000) + '\n\n' +
         '出力形式（実在が読み取れる固有名詞のみ。一般語・カテゴリ名は除外）:\n["店舗A","株式会社B",...]';
       const text = await AI.call({
         provider: state.settings.provider, apiKey: currentKey(), model: currentModel(),
-        system: sys, prompt: prompt, maxTokens: 500, signal: signal, onUsage: recordUsage,
+        system: sys, prompt: prompt, maxTokens: 1200, signal: signal, onUsage: recordUsage,
       });
       const start = text.indexOf('['), end = text.lastIndexOf(']');
       let arr = [];
       if (start !== -1 && end !== -1) arr = JSON.parse(text.slice(start, end + 1));
       arr = arr.filter(function (x) { return typeof x === 'string' && x.trim(); }).map(function (x) { return x.trim(); });
-      const merged = dedupeNames(seeds.concat(arr), 8);
-      return merged.length ? merged : dedupeNames(seeds.concat(Research.extractCandidateNames(digest, 8, state.topic)), 8);
+      const merged = dedupeNames(seeds.concat(arr), MAX_COMPETITORS);
+      return merged.length ? merged : dedupeNames(seeds.concat(Research.extractCandidateNames(digest, MAX_COMPETITORS, state.topic)), MAX_COMPETITORS);
     } catch (e) {
       if (signal.aborted) throw e;
-      return dedupeNames(seeds.concat(Research.extractCandidateNames(digest, 8, state.topic)), 8);
+      return dedupeNames(seeds.concat(Research.extractCandidateNames(digest, MAX_COMPETITORS, state.topic)), MAX_COMPETITORS);
     }
   }
   function dedupeNames(arr, max) {
@@ -1534,10 +1539,18 @@
     closeModal('profile-modal');
   }
 
+  function goHome() {
+    if (state.running) {
+      if (!confirm('分析を中止してトップ（メニュー）に戻りますか？')) return;
+    }
+    showMenu();
+  }
+
   function setupMenuEvents() {
     document.querySelectorAll('.menu-card').forEach(function (card) {
       card.addEventListener('click', function () { selectMode(card.dataset.mode); });
     });
+    $('#btn-home').addEventListener('click', goHome);
     $('#btn-back-menu').addEventListener('click', showMenu);
     $('#btn-open-profile').addEventListener('click', function () {
       renderProfileForm();
