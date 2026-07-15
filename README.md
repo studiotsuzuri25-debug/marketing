@@ -16,6 +16,7 @@
   - ChatGPT (OpenAI)
   - Gemini (Google)
   - Grok (xAI)
+  - Perplexity（リアルタイムWeb検索内蔵。市場分析に有効。出典URLを自動付与）
   - デモモード（APIキー不要・動作確認用）
 - **分析レベル3段階**
   | レベル | エージェント数 | 内容 |

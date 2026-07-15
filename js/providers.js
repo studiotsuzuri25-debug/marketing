@@ -59,6 +59,20 @@
       keyPlaceholder: 'xai-...',
       keyUrl: 'https://console.x.ai/',
     },
+    perplexity: {
+      label: 'Perplexity（リアルタイム検索）',
+      icon: 'globe',
+      needsKey: true,
+      defaultModel: 'sonar',
+      modelOptions: [
+        { id: 'sonar', note: 'リアルタイム検索・高速（推奨）' },
+        { id: 'sonar-pro', note: '高精度検索' },
+        { id: 'sonar-reasoning', note: '検索＋推論' },
+        { id: 'sonar-deep-research', note: '徹底調査（高コスト）' },
+      ],
+      keyPlaceholder: 'pplx-...',
+      keyUrl: 'https://www.perplexity.ai/settings/api',
+    },
   };
 
   async function readError(res) {
@@ -135,7 +149,17 @@
       input: data.usage.prompt_tokens || 0,
       output: data.usage.completion_tokens || 0,
     });
-    return ((data.choices || [])[0] || {}).message ? data.choices[0].message.content || '' : '';
+    let content = ((data.choices || [])[0] || {}).message ? data.choices[0].message.content || '' : '';
+    // Perplexity等のリアルタイム検索の出典URLを本文末尾に付与
+    let cites = data.citations;
+    if ((!cites || !cites.length) && Array.isArray(data.search_results)) {
+      cites = data.search_results.map(function (r) { return r.url || r.link; }).filter(Boolean);
+    }
+    if (Array.isArray(cites) && cites.length) {
+      content += '\n\n参考（リアルタイム検索の出典）:\n' +
+        cites.slice(0, 15).map(function (u, i) { return '[' + (i + 1) + '] ' + u; }).join('\n');
+    }
+    return content;
   }
 
   async function callGemini(opts) {
@@ -183,6 +207,11 @@
     'gemini': { in: 0.3, out: 2.5 },
     'grok-4': { in: 5, out: 15 },
     'grok': { in: 3, out: 15 },
+    'sonar-deep-research': { in: 2, out: 8 },
+    'sonar-reasoning-pro': { in: 2, out: 8 },
+    'sonar-reasoning': { in: 1, out: 5 },
+    'sonar-pro': { in: 3, out: 15 },
+    'sonar': { in: 1, out: 1 },
   };
 
   /* モデル名から概算単価を推定（部分一致・長いキー優先） */
@@ -290,6 +319,10 @@
 
   /* APIキーで実際に利用可能なモデルの一覧を各社のAPIから取得する */
   async function listModels(provider, apiKey) {
+    if (provider === 'perplexity') {
+      // Perplexityはモデル一覧APIを公開していないため既知の一覧を返す
+      return ['sonar', 'sonar-pro', 'sonar-reasoning', 'sonar-reasoning-pro', 'sonar-deep-research'];
+    }
     if (provider === 'gemini') {
       const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&key=' + encodeURIComponent(apiKey));
       if (!r.ok) throw await readError(r);
@@ -366,6 +399,7 @@
       case 'claude': return withTimeout(opts, callClaude);
       case 'openai': return withTimeout(opts, function (o) { return callOpenAICompat('https://api.openai.com/v1', o, true); });
       case 'grok':   return withTimeout(opts, function (o) { return callOpenAICompat('https://api.x.ai/v1', o, false); });
+      case 'perplexity': return withTimeout(opts, function (o) { return callOpenAICompat('https://api.perplexity.ai', o, false); });
       case 'gemini': return withTimeout(opts, callGemini);
       default: throw new Error('未対応のプロバイダです: ' + opts.provider);
     }
