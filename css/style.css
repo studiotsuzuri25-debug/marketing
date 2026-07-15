@@ -26,6 +26,9 @@
   --gold: #d4b25e;
   --gold-soft: rgba(212, 178, 94, 0.08);
   --grid-line: rgba(56, 189, 248, 0.045);
+  --sky: linear-gradient(180deg, #070b16 0%, #0a0e1e 55%, #0c0a1c 100%);
+  --cloud-a: rgba(60, 120, 235, 0.16);
+  --cloud-b: rgba(140, 95, 240, 0.15);
   --paper: #ffffff;
   --paper-text: #1b2330;
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
@@ -56,6 +59,9 @@
   --gold: #8a6d2b;
   --gold-soft: rgba(138, 109, 43, 0.08);
   --grid-line: rgba(2, 132, 199, 0.05);
+  --sky: linear-gradient(180deg, #e9f3ff 0%, #eef1ff 46%, #f6f0ff 100%);
+  --cloud-a: rgba(255, 255, 255, 0.92);
+  --cloud-b: rgba(150, 195, 255, 0.5);
   --paper: #ffffff;
   --paper-text: #1b2330;
   --shadow: 0 10px 30px rgba(23, 37, 60, 0.10);
@@ -68,7 +74,8 @@ html, body { overflow-x: hidden; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", Meiryo, system-ui, sans-serif;
-  background: var(--bg);
+  background: var(--sky, var(--bg));
+  background-attachment: fixed;
   color: var(--text);
   line-height: 1.65;
   min-height: 100vh;
@@ -76,19 +83,46 @@ body {
   padding-right: env(safe-area-inset-right);
   transition: background .25s ease, color .25s ease;
 }
-/* SFグリッド背景（ごく薄く） */
-body::before {
+/* 雲の上のようなSF背景 — ゆっくり流れる雲/もやのアニメーション */
+body::before, body::after {
   content: "";
   position: fixed;
-  inset: 0;
-  z-index: -1;
+  inset: -20% -10%;
+  z-index: -2;
   pointer-events: none;
-  background-image:
-    linear-gradient(var(--grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-  background-size: 44px 44px;
-  -webkit-mask-image: radial-gradient(ellipse 120% 80% at 50% 0%, #000 30%, transparent 78%);
-  mask-image: radial-gradient(ellipse 120% 80% at 50% 0%, #000 30%, transparent 78%);
+  will-change: transform;
+}
+/* 手前の雲レイヤー */
+body::before {
+  z-index: -1;
+  background:
+    radial-gradient(38% 30% at 20% 30%, var(--cloud-a) 0%, transparent 60%),
+    radial-gradient(32% 26% at 72% 22%, var(--cloud-b) 0%, transparent 60%),
+    radial-gradient(46% 34% at 50% 78%, var(--cloud-a) 0%, transparent 62%),
+    radial-gradient(30% 24% at 88% 66%, var(--cloud-b) 0%, transparent 60%);
+  filter: blur(14px);
+  animation: cloudDrift1 46s ease-in-out infinite alternate;
+}
+/* 奥の雲/もやレイヤー（逆方向でパララックス） */
+body::after {
+  background:
+    radial-gradient(50% 40% at 65% 40%, var(--cloud-b) 0%, transparent 62%),
+    radial-gradient(44% 36% at 12% 70%, var(--cloud-a) 0%, transparent 62%),
+    radial-gradient(40% 30% at 85% 12%, var(--cloud-a) 0%, transparent 60%);
+  filter: blur(26px);
+  opacity: .85;
+  animation: cloudDrift2 64s ease-in-out infinite alternate;
+}
+@keyframes cloudDrift1 {
+  0%   { transform: translate3d(-2%, 0, 0) scale(1.02); }
+  100% { transform: translate3d(3%, -2%, 0) scale(1.08); }
+}
+@keyframes cloudDrift2 {
+  0%   { transform: translate3d(2%, 1%, 0) scale(1.05); }
+  100% { transform: translate3d(-3%, -1%, 0) scale(1.12); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body::before, body::after { animation: none; }
 }
 button { font-family: inherit; }
 h1, h2, h3 { line-height: 1.35; font-weight: 600; }
@@ -123,17 +157,16 @@ h1, h2, h3 { line-height: 1.35; font-weight: 600; }
 .brand:hover { background: var(--accent-soft); }
 .brand:hover .brand-icon { box-shadow: var(--glow); }
 .brand-icon {
-  width: 40px; height: 40px; border-radius: var(--radius-sm); color: var(--accent);
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-line);
-  box-shadow: var(--glow);
+  width: 42px; height: 42px;
   display: inline-flex; align-items: center; justify-content: center;
 }
+.brand-icon svg { width: 42px; height: 42px; display: block; }
 .brand-icon .icon { width: 22px; height: 22px; }
-.brand h1 { font-size: 17px; letter-spacing: 0.06em; font-weight: 700; }
+.brand-text { display: flex; flex-direction: column; line-height: 1.1; }
+.brand h1 { font-size: 22px; letter-spacing: 0.14em; font-weight: 800; }
 .brand p {
-  font-size: 10px; color: var(--text-dim);
-  font-family: var(--mono); letter-spacing: 0.22em; text-transform: uppercase;
+  font-size: 11px; color: var(--text-dim);
+  font-weight: 300; letter-spacing: 0.08em; margin-top: 1px;
 }
 .header-actions { display: flex; align-items: center; gap: 10px; }
 .provider-badge {
@@ -688,8 +721,10 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--g
   .provider-badge span { display: none; }
   .provider-badge { padding: 6px; }
   .brand-icon { width: 34px; height: 34px; }
+  .brand-icon svg { width: 34px; height: 34px; }
   .brand-icon .icon { width: 19px; height: 19px; }
-  .brand h1, .brand p { display: none; }
+  .brand h1 { font-size: 18px; }
+  .brand p { display: none; }
   .header-actions { gap: 5px; }
   .app-header { gap: 8px; padding: 10px 12px; }
   #btn-settings .btn-label { display: none; }

@@ -29,10 +29,29 @@
 
 <header class="app-header">
   <button class="brand" id="btn-home" title="トップ（メニュー）へ戻る">
-    <span class="brand-icon" data-icon="bot"></span>
-    <div>
-      <h1>Agent Market Lab</h1>
-      <p>Multi-Agent Market Intelligence</p>
+    <span class="brand-icon">
+      <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="lg-mark" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#3aa0ff"/><stop offset="1" stop-color="#7c5cff"/>
+          </linearGradient>
+        </defs>
+        <!-- レーダーのリング（調査・分析） -->
+        <circle cx="24" cy="24" r="19" fill="none" stroke="url(#lg-mark)" stroke-width="2.4" opacity="0.35"/>
+        <circle cx="24" cy="24" r="12" fill="none" stroke="url(#lg-mark)" stroke-width="2" opacity="0.5"/>
+        <!-- レーダーのスイープ（速さ・SF） -->
+        <path d="M24 24 L24 5 A19 19 0 0 1 40.5 15 Z" fill="url(#lg-mark)" opacity="0.28">
+          <animateTransform attributeName="transform" type="rotate" from="0 24 24" to="360 24 24" dur="4s" repeatCount="indefinite"/>
+        </path>
+        <!-- 上昇する成長ライン（分析・市場） -->
+        <polyline points="14,31 21,25 27,28 35,17" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="35" cy="17" r="2.6" fill="#ffffff"/>
+        <circle cx="24" cy="24" r="2.2" fill="url(#lg-mark)"/>
+      </svg>
+    </span>
+    <div class="brand-text">
+      <h1>AML</h1>
+      <p>Agent Market Lab</p>
     </div>
   </button>
   <div class="header-actions">
