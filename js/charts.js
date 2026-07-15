@@ -15,7 +15,8 @@
     const n = Number(v);
     return isFinite(n) ? n : 0;
   }
-  function fmt(n) {
+  function fmt(v) {
+    const n = num(v);
     if (Math.abs(n) >= 10000) return n.toLocaleString('ja-JP');
     if (Number.isInteger(n)) return n.toLocaleString('ja-JP');
     return n.toLocaleString('ja-JP', { maximumFractionDigits: 1 });
@@ -29,16 +30,22 @@
     return m * p;
   }
 
+  /* ラベル数に合わせてデータを切詰め・0埋めして必ず同数に揃える */
+  function fitData(arr, n) {
+    const out = (arr || []).slice(0, n).map(num);
+    while (out.length < n) out.push(0);
+    return out;
+  }
   function normalize(spec) {
     const labels = (spec.labels || []).slice(0, 12).map(function (l) { return String(l); });
     let series = (spec.series || []).slice(0, 6).map(function (s, i) {
       return {
         name: String(s.name || '系列' + (i + 1)),
-        data: (s.data || []).slice(0, labels.length).map(num),
+        data: fitData(s.data, labels.length),
       };
     });
     if (!series.length && Array.isArray(spec.data)) {
-      series = [{ name: spec.title || '', data: spec.data.slice(0, labels.length).map(num) }];
+      series = [{ name: spec.title || '', data: fitData(spec.data, labels.length) }];
     }
     return { labels: labels, series: series };
   }

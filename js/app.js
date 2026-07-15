@@ -175,9 +175,10 @@
         'エリア内の実在する店舗・競合・Instagramアカウント・口コミが含まれることがあります。これを最重要かつ最新の一次情報として分析に使ってください。' +
         '引用時は出典として「自動調査N」と該当URLを必ず明記してください。実在が確認できた店舗名・アカウント名・URLは具体的に報告してください。' +
         '一方で、検索結果は不正確・古い場合もあるため、断定を避け、確認できない事項は「未確認」と明記してください（虚偽・捏造は絶対禁止）。\n\n' +
-        // 競合が多いと肥大化するため、プロンプトへ入れる調査ダイジェストは上限で丸める
+        // 競合が多いと肥大化するため、各エージェント配布用の調査ダイジェストは固定上限で丸める
+        // （コンテキスト超過・過大コストの防止。レベル別に緩やかに拡張）
         (function () {
-          const cap = Math.max(6000, (maxChars || 12000) * 2);
+          const cap = state.level >= 3 ? 24000 : state.level === 2 ? 16000 : 10000;
           return state.researchDigest.length > cap ? state.researchDigest.slice(0, cap) + '\n…（調査結果が長いため以降省略）' : state.researchDigest;
         })();
     }
@@ -211,12 +212,14 @@
     return mergeSettings(null);
   }
   function saveSettings() {
-    // ログイン中は暗号化して保存し、平文では保存しない
+    // ログイン中は暗号化して保存（APIキーを含む）
     if (window.Auth && Auth.isLoggedIn()) {
-      Auth.saveSettings(state.settings).catch(function (e) { console.warn('設定の暗号化保存に失敗:', e); });
-    } else {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
+      return Auth.saveSettings(state.settings).catch(function (e) { console.warn('設定の暗号化保存に失敗:', e); throw e; });
     }
+    // 未ログイン（ゲスト）はAPIキーを平文でディスクに残さない。キーはメモリ上のみ保持。
+    const safe = Object.assign({}, state.settings, { keys: {} });
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(safe)); } catch (e) { /* 容量等 */ }
+    return Promise.resolve();
   }
   function currentModel() {
     return state.settings.models[state.settings.provider] || AI.PROVIDERS[state.settings.provider].defaultModel;
@@ -631,7 +634,14 @@
           const m = /retry in ([0-9.]+)\s*s/i.exec(e.message || '');
           if (m) wait = Math.max(wait, parseFloat(m[1]) * 1000 + 2000);
         }
-        await sleep(wait, signal);
+        try {
+          await sleep(wait, signal);
+        } catch (abortErr) {
+          // backoff待機中に停止された場合はカードを待機中に戻す
+          agent.status = 'waiting';
+          updateAgentCard(agent);
+          throw abortErr;
+        }
       }
     }
   }
@@ -921,6 +931,7 @@
     state.researchDigest = '';
     state.researchCount = 0;
     state.researchImages = [];
+    state.competitorNames = [];
     state.settings.autoResearch = $('#research-input').checked;
     saveSettings();
     state.historyId = null;
@@ -978,7 +989,10 @@
           try {
             setPhase('競合・店舗を特定して個別に深掘り調査中…', 6, 'crosshair');
             const area = (loadProfile().area || '').trim();
-            const names = await discoverCompetitors(research.digest, area, signal);
+            // 個別深掘りの社数はモードで調整（市場分析は外部プロキシ負荷を抑えて8社まで、
+            // 競合分析はユーザー要望どおり最大20社）
+            const discovered = await discoverCompetitors(research.digest, area, signal);
+            const names = discovered.slice(0, state.mode === 'competitor' ? MAX_COMPETITORS : 8);
             if (!signal.aborted && names.length) {
               // 特定できた全社を分析対象として先に確定（深掘りが一部失敗しても全社を横比較させる）
               state.competitorNames = names;
@@ -1122,6 +1136,7 @@
         competitors: state.competitors,
         level: state.level,
         provider: state.settings.provider,
+        model: currentModel(),
         finalReport: state.finalReport,
         sourceNames: state.sourceNames,
         researchCount: state.researchCount,
@@ -1210,7 +1225,7 @@
     if (state.finalReport) {
       $('#report-content').innerHTML = MD.toHtml(state.finalReport);
       $('#report-section').hidden = false;
-      renderUsage();
+      renderUsage(entry.provider, entry.model);
     } else {
       $('#report-section').hidden = true;
     }
@@ -1228,14 +1243,16 @@
     $('#report-section').scrollIntoView({ behavior: 'smooth' });
   }
 
-  function renderUsage() {
+  function renderUsage(providerKey, modelName) {
     const el = $('#usage-bar');
     const u = state.usage;
     if (!u || !u.calls) { el.hidden = true; return; }
-    const provider = (AI.PROVIDERS[state.settings.provider] || {}).label || state.settings.provider;
+    const pKey = providerKey || state.settings.provider;
+    const provider = (AI.PROVIDERS[pKey] || {}).label || pKey;
+    const model = modelName || currentModel();
     const total = u.input + u.output;
     let costHtml = '';
-    if (state.settings.provider === 'demo') {
+    if (pKey === 'demo') {
       costHtml = '<span class="usage-cost">デモモード（課金なし）</span>';
     } else if (u.hasCost) {
       const usd = u.cost;
@@ -1247,7 +1264,7 @@
     el.innerHTML =
       '<span class="usage-icon" data-icon="activity"></span>' +
       '<div class="usage-body">' +
-      '<div class="usage-title">AIクレジット使用量（' + escapeText(provider) + ' / ' + escapeText(currentModel()) + '）</div>' +
+      '<div class="usage-title">AIクレジット使用量（' + escapeText(provider) + ' / ' + escapeText(model) + '）</div>' +
       '<div class="usage-nums">' +
       '<span>API呼び出し <strong>' + u.calls + '</strong> 回</span>' +
       '<span>入力 <strong>' + u.input.toLocaleString('ja-JP') + '</strong> トークン</span>' +
@@ -1440,11 +1457,15 @@
   }
 
   async function afterAuthSuccess() {
-    // アカウントの設定を読み込み、平文設定は端末から削除（セキュリティ強化）
+    // アカウントの設定を読み込み、暗号化保存が成功してから平文設定を端末から削除する
     const loaded = await Auth.loadSettings();
     state.settings = mergeSettings(loaded);
-    localStorage.removeItem(SETTINGS_KEY);
-    saveSettings();
+    try {
+      await saveSettings();               // 暗号化して保存（成功を確認）
+      localStorage.removeItem(SETTINGS_KEY); // 成功後に平文を削除
+    } catch (e) {
+      console.warn('ログイン後の設定保存に失敗（平文設定は保持）:', e);
+    }
     renderSettings();
     updateProviderBadge();
     $('#research-input').checked = state.settings.autoResearch !== false;
@@ -1807,6 +1828,15 @@
       backdrop.addEventListener('click', function (e) {
         if (e.target === backdrop) backdrop.hidden = true;
       });
+    });
+    // Escapeキーで最前面のモーダルを閉じる
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      const open = Array.prototype.filter.call(
+        document.querySelectorAll('.modal-backdrop'),
+        function (m) { return !m.hidden; }
+      );
+      if (open.length) open[open.length - 1].hidden = true;
     });
 
     $('#btn-dl-md').addEventListener('click', function () {

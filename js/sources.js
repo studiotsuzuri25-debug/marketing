@@ -47,25 +47,32 @@
     }
   }
 
+  /* 応答しないサーバで無限に「取得中…」にならないよう、各段にタイムアウトを設ける */
+  function fetchTimeout(url, ms) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(function () { ctrl.abort(); }, ms || 20000);
+    return fetch(url, { signal: ctrl.signal }).finally(function () { clearTimeout(timer); });
+  }
+
   async function fetchUrlContent(url) {
     // 1) 直接取得（CORS許可サイト・同一オリジン）
     try {
-      const r = await fetch(url);
+      const r = await fetchTimeout(url, 15000);
       if (r.ok) {
         const text = await r.text();
         const ct = r.headers.get('content-type') || '';
         return ct.includes('html') || /<html[\s>]/i.test(text.slice(0, 2000)) ? stripHtml(text) : text;
       }
-    } catch (e) { /* CORSブロック等 → プロキシへ */ }
+    } catch (e) { /* CORSブロック/タイムアウト等 → プロキシへ */ }
 
     // 2) Jina Reader（ページをMarkdown化して返すCORS対応リーダー）
     try {
-      const r = await fetch('https://r.jina.ai/' + url);
+      const r = await fetchTimeout('https://r.jina.ai/' + url, 25000);
       if (r.ok) return await r.text();
     } catch (e) { /* 次へ */ }
 
     // 3) allorigins プロキシ経由
-    const r = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(url));
+    const r = await fetchTimeout('https://api.allorigins.win/raw?url=' + encodeURIComponent(url), 25000);
     if (!r.ok) throw new Error('URLを取得できませんでした (' + r.status + ')');
     return stripHtml(await r.text());
   }

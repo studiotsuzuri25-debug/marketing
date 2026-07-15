@@ -85,26 +85,26 @@
 
     if (cloudEnabled()) {
       await window.Cloud.register(id, password); // 既存IDはここで弾かれる
-      const key = await deriveKey(password, await saltFromId(id), true);
+      const key = await deriveKey(password, await saltFromId(id), false);
       currentId = id;
       currentKey = key;
       const data = await encrypt(key, JSON.stringify(initialSettings || {}));
       await window.Cloud.saveBlob({ v: 1, data: data });
-      await persistSession(password, id);
+      await persistSession(id);
       return id;
     }
 
     const store = loadStore();
     if (store[id]) throw new Error('このIDはこの端末で既に登録されています。ログインしてください。');
     const salt = crypto.getRandomValues(new Uint8Array(16));
-    const key = await deriveKey(password, salt, true);
+    const key = await deriveKey(password, salt, false);
     const check = await encrypt(key, CHECK_PLAINTEXT);
     const data = await encrypt(key, JSON.stringify(initialSettings || {}));
     store[id] = { v: 1, salt: b64(salt), check: check, data: data, updated: new Date().toISOString() };
     saveStore(store);
     currentId = id;
     currentKey = key;
-    await persistSession(password, id);
+    await persistSession(id);
     return id;
   }
 
@@ -113,17 +113,17 @@
 
     if (cloudEnabled()) {
       await window.Cloud.login(id, password); // ID/パスワードの検証はFirebase側で実施
-      const key = await deriveKey(password, await saltFromId(id), true);
+      const key = await deriveKey(password, await saltFromId(id), false);
       currentId = id;
       currentKey = key;
-      await persistSession(password, id);
+      await persistSession(id);
       return id;
     }
 
     const store = loadStore();
     const rec = store[id];
     if (!rec) throw new Error('このIDはこの端末に見つかりません。新規登録するか、同期ファイルを読み込んでください。');
-    const key = await deriveKey(password, unb64(rec.salt), true);
+    const key = await deriveKey(password, unb64(rec.salt), false);
     try {
       const check = await decrypt(key, rec.check);
       if (check !== CHECK_PLAINTEXT) throw new Error('bad');
@@ -132,7 +132,7 @@
     }
     currentId = id;
     currentKey = key;
-    await persistSession(password, id);
+    await persistSession(id);
     return id;
   }
 
@@ -144,7 +144,7 @@
       throw new Error('パスワード欄に「データ保護用パスワード」（8文字以上・全端末で共通）を入力してからGoogleログインを押してください。');
     }
     const info = await window.Cloud.loginWithGoogle();
-    const key = await deriveKey(passphrase, await saltFromId('google-uid-v1:' + info.uid), true);
+    const key = await deriveKey(passphrase, await saltFromId('google-uid-v1:' + info.uid), false);
     const box = await window.Cloud.loadBlob();
     if (box && box.data) {
       try {
@@ -161,31 +161,76 @@
       const data = await encrypt(key, JSON.stringify(initialSettings || {}));
       await window.Cloud.saveBlob({ v: 1, data: data });
     }
-    await persistSession(passphrase, currentId);
+    await persistSession(currentId);
     return currentId;
   }
 
-  /* タブを閉じるまでログイン状態を維持（sessionStorageに鍵素材を保持。恒久保存はしない） */
-  async function persistSession(password, id) {
+  /* 復号鍵は「取り出し不可(non-extractable)」なCryptoKeyのままIndexedDBに保持する。
+     生鍵素材やパスワードは保存しない。タブIDはsessionStorage（タブを閉じると消える）で管理し、
+     両方揃ったときのみセッションを復元する。 */
+  const IDB_NAME = 'aml-keys';
+  const IDB_STORE = 'k';
+  function idbOpen() {
+    return new Promise(function (res, rej) {
+      const r = indexedDB.open(IDB_NAME, 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore(IDB_STORE); };
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { rej(r.error); };
+    });
+  }
+  function idbPut(k, v) {
+    return idbOpen().then(function (db) {
+      return new Promise(function (res, rej) {
+        const t = db.transaction(IDB_STORE, 'readwrite');
+        t.objectStore(IDB_STORE).put(v, k);
+        t.oncomplete = function () { db.close(); res(); };
+        t.onerror = function () { db.close(); rej(t.error); };
+      });
+    });
+  }
+  function idbGet(k) {
+    return idbOpen().then(function (db) {
+      return new Promise(function (res, rej) {
+        const t = db.transaction(IDB_STORE, 'readonly');
+        const rq = t.objectStore(IDB_STORE).get(k);
+        rq.onsuccess = function () { db.close(); res(rq.result); };
+        rq.onerror = function () { db.close(); rej(rq.error); };
+      });
+    });
+  }
+  function idbDel(k) {
+    return idbOpen().then(function (db) {
+      return new Promise(function (res) {
+        const t = db.transaction(IDB_STORE, 'readwrite');
+        t.objectStore(IDB_STORE).delete(k);
+        t.oncomplete = function () { db.close(); res(); };
+        t.onerror = function () { db.close(); res(); };
+      });
+    }).catch(function () {});
+  }
+
+  async function persistSession(id) {
     try {
-      const jwk = await crypto.subtle.exportKey('jwk', currentKey);
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ id: id, jwk: jwk }));
+      await idbPut('sessionKey', currentKey); // non-extractable CryptoKey をそのまま保存
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ id: id }));
     } catch (e) { /* セッション維持は任意機能 */ }
   }
 
   async function resumeSession() {
     try {
       const raw = sessionStorage.getItem(SESSION_KEY);
-      if (!raw) return null;
+      if (!raw) { await idbDel('sessionKey'); return null; } // タブを閉じた＝失効。残った鍵も破棄
       const s = JSON.parse(raw);
       if (cloudEnabled()) {
         const user = await window.Cloud.waitUser();
-        if (!user) { sessionStorage.removeItem(SESSION_KEY); return null; }
+        if (!user) { sessionStorage.removeItem(SESSION_KEY); await idbDel('sessionKey'); return null; }
       } else {
         const store = loadStore();
         if (!store[s.id]) return null;
       }
-      currentKey = await crypto.subtle.importKey('jwk', s.jwk, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+      const key = await idbGet('sessionKey');
+      if (!key) { sessionStorage.removeItem(SESSION_KEY); return null; }
+      currentKey = key;
       currentId = s.id;
       return s.id;
     } catch (e) {
@@ -197,6 +242,7 @@
     currentId = null;
     currentKey = null;
     sessionStorage.removeItem(SESSION_KEY);
+    idbDel('sessionKey');
     if (cloudEnabled()) window.Cloud.logout();
   }
 

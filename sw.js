@@ -1,7 +1,7 @@
 /* Service Worker — アプリシェルのキャッシュと通知クリック処理 */
 'use strict';
 
-const CACHE_NAME = 'aml-cache-v26';
+const CACHE_NAME = 'aml-cache-v27';
 const APP_SHELL = [
   './',
   'index.html',
@@ -57,7 +57,7 @@ self.addEventListener('fetch', function (event) {
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(
-    caches.match(req).then(function (cached) {
+    caches.match(req, { ignoreSearch: true }).then(function (cached) {
       const network = fetch(req)
         .then(function (res) {
           if (res && res.ok) {
