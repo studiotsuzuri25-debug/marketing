@@ -48,9 +48,40 @@
     },
   };
 
+  /* ============ 自社情報の質問項目 ============ */
+  const PROFILE_QUESTIONS = [
+    { key: 'name', q: '会社名・屋号・ブランド名は？', ph: '例: サロン・ド・ツヅリ' },
+    { key: 'business', q: '事業内容・提供している商品やサービスは？', ph: '例: フェイシャル・痩身エステ、フェイシャル機器の販売' },
+    { key: 'area', q: '営業エリア・店舗の所在地は？（実店舗調査に使います）', ph: '例: 東京都渋谷区、オンライン全国' },
+    { key: 'target', q: '主なターゲット顧客は？', ph: '例: 30〜40代の働く女性' },
+    { key: 'price', q: '価格帯は？', ph: '例: 1回8,000〜15,000円、月額コース3万円' },
+    { key: 'strength', q: '自社の強み・こだわりは？', ph: '例: 完全個室、独自の美容機器、リピート率80%' },
+    { key: 'weakness', q: '課題・弱みだと感じている点は？', ph: '例: 新規集客が弱い、SNS運用が手薄' },
+    { key: 'channel', q: '集客・販売チャネルは？', ph: '例: Instagram、ホットペッパー、紹介' },
+    { key: 'url', q: '自社サイト・SNSのURLは？', ph: '例: https://example.com, Instagram @xxxx' },
+    { key: 'goal', q: 'この分析で達成したいことは？', ph: '例: 競合との差別化、新規客の獲得' },
+  ];
+
+  function loadProfile() {
+    return (state.settings && state.settings.profile) || {};
+  }
+  function profileFilledCount() {
+    const p = loadProfile();
+    return PROFILE_QUESTIONS.filter(function (q) { return (p[q.key] || '').trim(); }).length;
+  }
+  function profileToText() {
+    const p = loadProfile();
+    const lines = PROFILE_QUESTIONS
+      .filter(function (q) { return (p[q.key] || '').trim(); })
+      .map(function (q) { return '- ' + q.q + ' → ' + p[q.key].trim(); });
+    return lines.length ? lines.join('\n') : '';
+  }
+
   /* ============ 状態 ============ */
   const state = {
     settings: loadSettings(),
+    mode: 'market',
+    competitors: '',
     topic: '',
     level: 2,
     agents: [],
@@ -64,7 +95,44 @@
     researchDigest: '',
     researchCount: 0,
     historyId: null,
+    usage: null,
   };
+
+  function resetUsage() {
+    state.usage = { input: 0, output: 0, calls: 0, cost: 0, hasCost: false };
+  }
+  function recordUsage(u) {
+    if (!state.usage) resetUsage();
+    state.usage.input += u.input || 0;
+    state.usage.output += u.output || 0;
+    state.usage.calls += 1;
+    const c = AI.estimateCost(state.settings.provider, currentModel(), u.input || 0, u.output || 0);
+    if (c != null) { state.usage.cost += c; state.usage.hasCost = true; }
+  }
+
+  /* 自社情報・競合指定・分析モードをプロンプトに埋め込むブロック */
+  function contextBlock() {
+    let b = '';
+    if (state.mode === 'competitor') {
+      b += '\n\n【分析モード】自社と競合の比較分析\n';
+      const prof = profileToText();
+      if (prof) {
+        b += '■ 自社情報（登録済み。これを分析の起点にする）:\n' + prof + '\n';
+      } else {
+        b += '■ 自社情報は未登録です。テーマ本文から自社の状況を読み取ってください。\n';
+      }
+      if (state.competitors) {
+        b += '■ ユーザー指定の競合:\n' + state.competitors + '\n';
+      } else {
+        b += '■ 競合の指定はありません。市場・エリア内の実在の競合を自動調査結果から特定し、自社と比較してください。\n';
+      }
+      b += '自社と競合を具体的な項目（価格・サービス・強み弱み・集客チャネル・SNS・立地など）で比較し、差別化ポイントと打ち手を提示してください。';
+    } else {
+      const prof = profileToText();
+      if (prof) b += '\n\n【参考: 依頼者の自社情報】\n' + prof;
+    }
+    return b;
+  }
 
   /* ソース資料＋自動リサーチ結果をプロンプトに埋め込むブロックを生成 */
   function sourceBlock(maxChars) {
@@ -77,20 +145,23 @@
         '資料にない事項を学習知識で補う場合はその旨を区別して書いてください。\n\n' + d;
     }
     if (state.researchDigest) {
-      block += '\n\n【自動Webリサーチ結果】\n' +
-        '以下はアプリが公開Webから自動収集した情報です。引用する際は出典として「自動調査N」とURLを明記してください。' +
-        '収集情報は不正確・古い可能性もあるため鵜呑みにせず、複数情報の突き合わせや妥当性の検討を行ってください。\n\n' +
+      block += '\n\n【エージェントによるリアルタイムWeb調査結果（検索エンジン・実店舗・Instagram・口コミ）】\n' +
+        '以下は、検索エンジン（Google相当のWEB検索）・ニュース・Instagram等の公開Web検索で、今このタイミングに自動収集した実データです。' +
+        'エリア内の実在する店舗・競合・Instagramアカウント・口コミが含まれることがあります。これを最重要かつ最新の一次情報として分析に使ってください。' +
+        '引用時は出典として「自動調査N」と該当URLを必ず明記してください。実在が確認できた店舗名・アカウント名・URLは具体的に報告してください。' +
+        '一方で、検索結果は不正確・古い場合もあるため、断定を避け、確認できない事項は「未確認」と明記してください（虚偽・捏造は絶対禁止）。\n\n' +
         state.researchDigest;
     }
     return block;
   }
 
   function mergeSettings(s) {
-    const defaults = { provider: 'demo', concurrency: 4, notify: true, autoResearch: true, keys: {}, models: {} };
+    const defaults = { provider: 'demo', concurrency: 4, notify: true, autoResearch: true, keys: {}, models: {}, profile: {} };
     s = s || {};
     return Object.assign(defaults, s, {
       keys: Object.assign({}, s.keys),
       models: Object.assign({}, s.models),
+      profile: Object.assign({}, s.profile),
     });
   }
   function loadSettings() {
@@ -328,12 +399,12 @@
         '- それぞれ異なる専門役割にする（市場規模、競合、顧客、トレンド、価格、チャネル、リスク、規制、SNS、海外事例など、テーマに合わせて多角的に）\n' +
         '- SNS・Instagram分析（トレンド・人気ハッシュタグ・伸びている投稿やビジュアルの傾向）を担当するエージェントを必ず1体以上含める\n' +
         '- Google検索・AI検索のキーワードトレンド分析を担当するエージェントを必ず1体含める\n' +
-        '- name はカタカナ3〜4文字の親しみやすい名前（重複禁止）\n' +
+        '- name は英語のファーストネーム（例: Ethan, Olivia, Liam。半角英字・重複禁止）\n' +
         '- role は「〜アナリスト」「〜リサーチャー」などの肩書き（12文字以内）\n' +
         '- icon は次の一覧から役割に最も合うものを1つ選ぶ: ' + Icons.TEAM_ICON_NAMES.join(', ') + '\n' +
         '- focus はそのエージェントが分析する観点の説明（50字以内）\n\n' +
         '出力形式（この形式のJSON配列のみを出力）:\n' +
-        '[{"name":"ハルト","role":"市場規模アナリスト","icon":"chart","focus":"市場規模と成長率を推定する"}]';
+        '[{"name":"Ethan","role":"市場規模アナリスト","icon":"chart","focus":"市場規模と成長率を推定する"}]';
       const text = await AI.call({
         provider: state.settings.provider,
         apiKey: currentKey(),
@@ -342,6 +413,7 @@
         prompt: prompt,
         maxTokens: 4000,
         signal: signal,
+        onUsage: recordUsage,
       });
       const start = text.indexOf('[');
       const end = text.lastIndexOf(']');
@@ -396,6 +468,7 @@
       : '';
     const prompt =
       '【分析テーマ】\n' + state.topic +
+      contextBlock() +
       sourceBlock(lv.sourceChars) + '\n\n' +
       '【指示】\nあなたの担当領域「' + agent.role + '」の観点からこのテーマを分析し、報告してください。' + snsExtra + kwExtra + '\n' +
       lv.instruction + '\n\n最後に「**結論:**」として担当領域からの最重要メッセージを1〜2文で述べ、' +
@@ -420,6 +493,7 @@
           demoRole: agent.role,
           demoTopic: state.topic,
           demoSourceCount: state.sourceNames.length,
+          onUsage: recordUsage,
         });
         agent.report = text.trim();
         agent.status = 'done';
@@ -501,7 +575,7 @@
       '絵文字や顔文字は一切使用しないでください。' +
       'データの捏造・架空の出典の作成は絶対に禁止です。エージェント報告に無い数値を新たに作らないでください（報告内の数値の計算・集計は可）。';
     const prompt =
-      '【分析テーマ】\n' + state.topic + '\n\n' +
+      '【分析テーマ】\n' + state.topic + contextBlock() + '\n\n' +
       '【分析レベル】' + lv.name + '\n' +
       '【指示】\n以下の' + done.length + '体のエージェントの報告をすべて統合し、市場分析資料を作成してください。\n' +
       lv.synthInstruction + '\n\n' +
@@ -549,6 +623,7 @@
           demoTopic: state.topic,
           demoCount: done.length,
           demoSourceCount: state.sourceNames.length,
+          onUsage: recordUsage,
         });
         break;
       } catch (e) {
@@ -710,6 +785,7 @@
     const levelInput = document.querySelector('input[name="level"]:checked');
     state.level = parseInt(levelInput ? levelInput.value : '2', 10);
     state.topic = topic;
+    state.competitors = (state.mode === 'competitor') ? ($('#competitor-input').value || '').trim() : '';
     state.sourceDigest = Sources.buildDigest(LEVELS[state.level].sourceChars);
     state.sourceNames = Sources.listNames();
     state.researchDigest = '';
@@ -717,6 +793,7 @@
     state.settings.autoResearch = $('#research-input').checked;
     saveSettings();
     state.historyId = null;
+    resetUsage();
     state.finalReport = '';
     state.abort = new AbortController();
     state.running = true;
@@ -728,8 +805,9 @@
     $('#report-section').hidden = true;
     $('#btn-stop').hidden = false;
     $('#btn-new').hidden = true;
-    $('#run-topic').textContent = '「' + topic + '」｜' + LEVELS[state.level].name + '｜' + provider.label +
-      (state.sourceNames.length ? '｜参考資料 ' + state.sourceNames.length + '件' : '｜指示文のみ');
+    $('#run-topic').textContent = '【' + (state.mode === 'competitor' ? '自社と競合の分析' : '市場分析') + '】「' + topic + '」｜' +
+      LEVELS[state.level].name + '｜' + provider.label +
+      (state.sourceNames.length ? '｜参考資料 ' + state.sourceNames.length + '件' : '');
     $('#agent-grid').innerHTML = '';
     $('#synth-slot').innerHTML = '';
     $('#progress-text').textContent = '';
@@ -750,7 +828,13 @@
             LEVELS[state.level].researchChars,
             signal,
             function (done, total) {
-              $('#progress-text').textContent = '自動調査: ' + done + ' / ' + total + ' 件';
+              $('#progress-text').textContent = 'エージェントがWeb検索・実店舗/SNS調査を実行中: ' + done + ' / ' + total + ' 件';
+            },
+            {
+              mode: state.mode,
+              area: (loadProfile().area || '').trim(),
+              company: (loadProfile().name || '').trim(),
+              competitors: state.competitors,
             }
           );
           if (signal.aborted) return;
@@ -874,11 +958,14 @@
     try {
       const data = {
         topic: state.topic,
+        mode: state.mode,
+        competitors: state.competitors,
         level: state.level,
         provider: state.settings.provider,
         finalReport: state.finalReport,
         sourceNames: state.sourceNames,
         researchCount: state.researchCount,
+        usage: state.usage,
         agents: snapshotAgents(),
         synth: state.synth ? {
           name: state.synth.name, role: state.synth.role, icon: state.synth.icon,
@@ -932,12 +1019,15 @@
     if (state.abort) state.abort.abort();
     state.historyId = entry.id;
     state.topic = entry.topic || '';
+    state.mode = entry.mode || 'market';
+    state.competitors = entry.competitors || '';
     state.level = entry.level || 2;
     state.finalReport = entry.finalReport || '';
     state.sourceNames = entry.sourceNames || [];
     state.sourceDigest = '';
     state.researchDigest = '';
     state.researchCount = entry.researchCount || 0;
+    state.usage = entry.usage || null;
     state.agents = (entry.agents || []).map(function (a, i) {
       return Object.assign({ id: i, report: '', error: '' }, a);
     });
@@ -958,6 +1048,7 @@
     if (state.finalReport) {
       $('#report-content').innerHTML = MD.toHtml(state.finalReport);
       $('#report-section').hidden = false;
+      renderUsage();
     } else {
       $('#report-section').hidden = true;
     }
@@ -965,15 +1056,45 @@
   }
 
   function resetToSetup() {
-    if (state.abort) state.abort.abort();
-    $('#run-view').hidden = true;
-    $('#setup-view').hidden = false;
+    showMenu();
   }
 
   function showReport() {
     $('#report-content').innerHTML = MD.toHtml(state.finalReport);
     $('#report-section').hidden = false;
+    renderUsage();
     $('#report-section').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function renderUsage() {
+    const el = $('#usage-bar');
+    const u = state.usage;
+    if (!u || !u.calls) { el.hidden = true; return; }
+    const provider = (AI.PROVIDERS[state.settings.provider] || {}).label || state.settings.provider;
+    const total = u.input + u.output;
+    let costHtml = '';
+    if (state.settings.provider === 'demo') {
+      costHtml = '<span class="usage-cost">デモモード（課金なし）</span>';
+    } else if (u.hasCost) {
+      const usd = u.cost;
+      const jpy = Math.round(usd * 155);
+      costHtml = '<span class="usage-cost">概算コスト: 約 $' + usd.toFixed(usd < 1 ? 4 : 2) + '（約 ' + jpy.toLocaleString('ja-JP') + '円）</span>';
+    } else {
+      costHtml = '<span class="usage-cost">概算コスト: 単価不明のモデルのため算出不可</span>';
+    }
+    el.innerHTML =
+      '<span class="usage-icon" data-icon="activity"></span>' +
+      '<div class="usage-body">' +
+      '<div class="usage-title">AIクレジット使用量（' + escapeText(provider) + ' / ' + escapeText(currentModel()) + '）</div>' +
+      '<div class="usage-nums">' +
+      '<span>API呼び出し <strong>' + u.calls + '</strong> 回</span>' +
+      '<span>入力 <strong>' + u.input.toLocaleString('ja-JP') + '</strong> トークン</span>' +
+      '<span>出力 <strong>' + u.output.toLocaleString('ja-JP') + '</strong> トークン</span>' +
+      '<span>合計 <strong>' + total.toLocaleString('ja-JP') + '</strong> トークン</span>' +
+      costHtml +
+      '</div></div>';
+    el.hidden = false;
+    Icons.hydrate(el);
   }
 
   /* ============ ダウンロード ============ */
@@ -1250,6 +1371,79 @@
     }).catch(function (e) { console.warn(e); });
   }
 
+  /* ============ メニュー・自社情報 ============ */
+  function showMenu() {
+    if (state.abort) state.abort.abort();
+    state.running = false;
+    $('#menu-view').hidden = false;
+    $('#setup-view').hidden = true;
+    $('#run-view').hidden = true;
+    updateProfileStatus();
+  }
+
+  function updateProfileStatus() {
+    const n = profileFilledCount();
+    const el = $('#profile-status');
+    if (!el) return;
+    el.textContent = n ? '自社情報: ' + n + ' / ' + PROFILE_QUESTIONS.length + ' 項目を登録済み' : '自社情報は未登録です（競合分析でより精度が上がります）';
+  }
+
+  function selectMode(mode) {
+    state.mode = mode;
+    $('#menu-view').hidden = true;
+    $('#setup-view').hidden = false;
+    $('#run-view').hidden = true;
+    const isComp = mode === 'competitor';
+    $('#competitor-fields').hidden = !isComp;
+    if (isComp) {
+      $('#setup-title').textContent = '自社と競合の分析';
+      const n = profileFilledCount();
+      $('#competitor-hint').textContent = n
+        ? '登録済みの自社情報（' + n + '項目）を基に競合と比較します。下のテーマ欄には分析の狙いを書いてください。'
+        : '自社情報が未登録です。メニューに戻って登録するか、下のテーマ欄に自社の情報を詳しく書いてください。';
+      $('#topic-input').placeholder = '例: 渋谷エリアで競合エステサロンと比較し、差別化ポイントと集客改善策を知りたい';
+    } else {
+      $('#setup-title').textContent = '分析したい内容を入力してください';
+      $('#topic-input').placeholder = '分析したい市場・商品・サービス・課題などを自由に記入してください…';
+    }
+    window.scrollTo({ top: 0 });
+  }
+
+  function renderProfileForm() {
+    const p = loadProfile();
+    $('#profile-fields').innerHTML = PROFILE_QUESTIONS.map(function (q) {
+      return '<div class="field"><label>' + escapeText(q.q) + '</label>' +
+        '<input type="text" data-profile="' + q.key + '" placeholder="' + escapeText(q.ph) + '" value="' +
+        escapeText(p[q.key] || '').replace(/"/g, '&quot;') + '"></div>';
+    }).join('');
+  }
+
+  function saveProfile() {
+    const p = {};
+    document.querySelectorAll('[data-profile]').forEach(function (input) {
+      const v = input.value.trim();
+      if (v) p[input.dataset.profile] = v;
+    });
+    state.settings.profile = p;
+    saveSettings();
+    updateProfileStatus();
+    closeModal('profile-modal');
+  }
+
+  function setupMenuEvents() {
+    document.querySelectorAll('.menu-card').forEach(function (card) {
+      card.addEventListener('click', function () { selectMode(card.dataset.mode); });
+    });
+    $('#btn-back-menu').addEventListener('click', showMenu);
+    $('#btn-open-profile').addEventListener('click', function () {
+      renderProfileForm();
+      Icons.hydrate($('#profile-modal'));
+      openModal('profile-modal');
+    });
+    $('#btn-save-profile').addEventListener('click', saveProfile);
+    updateProfileStatus();
+  }
+
   /* ============ PWA: Service Worker登録 ============ */
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
@@ -1269,6 +1463,7 @@
     updateProviderBadge();
     setupSourceEvents();
     setupAccountEvents();
+    setupMenuEvents();
     registerServiceWorker();
 
     // 自律リサーチのオン/オフ

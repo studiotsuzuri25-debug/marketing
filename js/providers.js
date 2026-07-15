@@ -101,6 +101,10 @@
     });
     if (!res.ok) throw await readError(res);
     const data = await res.json();
+    reportUsage(opts, data.usage && {
+      input: data.usage.input_tokens || 0,
+      output: data.usage.output_tokens || 0,
+    });
     return (data.content || []).map(function (b) { return b.text || ''; }).join('');
   }
 
@@ -127,6 +131,10 @@
     });
     if (!res.ok) throw await readError(res);
     const data = await res.json();
+    reportUsage(opts, data.usage && {
+      input: data.usage.prompt_tokens || 0,
+      output: data.usage.completion_tokens || 0,
+    });
     return ((data.choices || [])[0] || {}).message ? data.choices[0].message.content || '' : '';
   }
 
@@ -145,9 +153,53 @@
     });
     if (!res.ok) throw await readError(res);
     const data = await res.json();
+    const um = data.usageMetadata || {};
+    reportUsage(opts, { input: um.promptTokenCount || 0, output: um.candidatesTokenCount || 0 });
     const cand = (data.candidates || [])[0];
     if (!cand || !cand.content) throw new Error('Geminiから応答が取得できませんでした');
     return (cand.content.parts || []).map(function (p) { return p.text || ''; }).join('');
+  }
+
+  /* トークン使用量を呼び出し元へ通知（概算コスト計算に使用） */
+  function reportUsage(opts, usage) {
+    if (opts && typeof opts.onUsage === 'function' && usage) {
+      opts.onUsage({ input: usage.input || 0, output: usage.output || 0 });
+    }
+  }
+
+  /* モデル別の概算単価（USD / 100万トークン）。あくまで目安。 */
+  const PRICING = {
+    'claude-opus': { in: 15, out: 75 },
+    'claude-sonnet': { in: 3, out: 15 },
+    'claude-haiku': { in: 0.8, out: 4 },
+    'gpt-4o-mini': { in: 0.15, out: 0.6 },
+    'gpt-4o': { in: 2.5, out: 10 },
+    'gpt-4': { in: 2.5, out: 10 },
+    'gpt': { in: 2.5, out: 10 },
+    'gemini-2.5-pro': { in: 1.25, out: 10 },
+    'gemini-pro': { in: 1.25, out: 10 },
+    'gemini-2.5-flash': { in: 0.3, out: 2.5 },
+    'gemini-flash': { in: 0.3, out: 2.5 },
+    'gemini': { in: 0.3, out: 2.5 },
+    'grok-4': { in: 5, out: 15 },
+    'grok': { in: 3, out: 15 },
+  };
+
+  /* モデル名から概算単価を推定（部分一致・長いキー優先） */
+  function priceFor(model) {
+    const m = String(model || '').toLowerCase();
+    const keys = Object.keys(PRICING).sort(function (a, b) { return b.length - a.length; });
+    for (let i = 0; i < keys.length; i++) {
+      if (m.indexOf(keys[i]) !== -1) return PRICING[keys[i]];
+    }
+    return null;
+  }
+
+  function estimateCost(provider, model, inputTokens, outputTokens) {
+    if (provider === 'demo') return 0;
+    const p = priceFor(model);
+    if (!p) return null;
+    return (inputTokens / 1e6) * p.in + (outputTokens / 1e6) * p.out;
   }
 
   /* デモモード：ダミーの分析レポートを生成（APIキー不要で動作確認用） */
@@ -155,6 +207,7 @@
     const role = opts.demoRole || '市場分析';
     const topic = (opts.demoTopic || 'ご指定のテーマ').slice(0, 60);
     const delay = 1200 + Math.random() * 3500;
+    reportUsage(opts, { input: 700 + Math.floor(Math.random() * 900), output: opts.demoKind === 'synthesis' ? 1800 : 400 + Math.floor(Math.random() * 500) });
     return new Promise(function (resolve, reject) {
       const t = setTimeout(function () {
         if (opts.demoKind === 'synthesis') {
@@ -318,5 +371,5 @@
     }
   }
 
-  window.AI = { PROVIDERS: PROVIDERS, call: callAI, listModels: listModels };
+  window.AI = { PROVIDERS: PROVIDERS, call: callAI, listModels: listModels, estimateCost: estimateCost };
 })();

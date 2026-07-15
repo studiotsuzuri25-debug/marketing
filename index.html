@@ -45,10 +45,38 @@
 </header>
 
 <main>
+  <!-- ============ メニュー画面 ============ -->
+  <section id="menu-view" class="view">
+    <div class="menu-wrap">
+      <h2 class="menu-title">分析メニューを選んでください</h2>
+      <div class="menu-grid">
+        <button class="menu-card" data-mode="market">
+          <span class="menu-icon" data-icon="chart"></span>
+          <strong>市場分析</strong>
+          <span class="menu-desc">市場規模・競合・トレンド・SNS・検索需要などを多角的に分析し、参入戦略や市場性の資料を作成します。</span>
+        </button>
+        <button class="menu-card" data-mode="competitor">
+          <span class="menu-icon" data-icon="crosshair"></span>
+          <strong>自社と競合との分析</strong>
+          <span class="menu-desc">登録した自社情報をもとに、指定または市場で見つかった競合と比較分析します。まず自社情報の登録がおすすめです。</span>
+        </button>
+      </div>
+      <button class="btn btn-ghost btn-icon-text menu-profile-btn" id="btn-open-profile"><span data-icon="user"></span><span class="btn-label">自社情報を登録・編集</span></button>
+      <p class="hint menu-profile-status" id="profile-status"></p>
+    </div>
+  </section>
+
   <!-- ============ 入力画面 ============ -->
-  <section id="setup-view" class="view">
+  <section id="setup-view" class="view" hidden>
     <div class="setup-card">
-      <h2>分析したい内容を入力してください</h2>
+      <button class="btn btn-ghost btn-sm btn-icon-text back-btn" id="btn-back-menu"><span data-icon="compass"></span><span class="btn-label">メニューへ戻る</span></button>
+      <h2 id="setup-title">分析したい内容を入力してください</h2>
+      <div id="competitor-fields" hidden>
+        <p class="hint" id="competitor-hint"></p>
+        <label class="field-label">競合の指定（任意・改行またはカンマ区切りで複数可）</label>
+        <textarea id="competitor-input" rows="2" placeholder="例: 競合サロンA / 株式会社◯◯ / https://competitor.example.com"></textarea>
+        <p class="hint">未入力の場合は、エージェントが市場・エリア内から競合を自動的に探して比較します。</p>
+      </div>
       <p class="hint">例：「国内のオーガニックコスメ市場に新ブランドで参入したい。20〜30代女性向け。市場性と参入戦略を分析してほしい」</p>
       <textarea id="topic-input" rows="5" placeholder="分析したい市場・商品・サービス・課題などを自由に記入してください…"></textarea>
 
@@ -147,6 +175,7 @@
           <button class="btn btn-ghost btn-icon-text" id="btn-dl-txt"><span data-icon="alignleft"></span><span class="btn-label">テキスト</span></button>
         </div>
       </div>
+      <div id="usage-bar" class="usage-bar" hidden></div>
       <article id="report-content" class="report-content markdown-body"></article>
     </section>
   </section>
@@ -184,6 +213,23 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-primary" id="btn-save-settings">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 自社情報モーダル ============ -->
+<div id="profile-modal" class="modal-backdrop" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="h-icon"><span data-icon="user"></span>自社情報の登録</h2>
+      <button class="modal-close" data-close="profile-modal" title="閉じる"><span data-icon="x"></span></button>
+    </div>
+    <div class="modal-body">
+      <p class="hint">競合分析の精度を高めるための情報です。質問に答える形式で入力してください。<strong>わからない項目は空欄のままでOK</strong>です。ここで登録した内容は、他の設定と同様に暗号化して保存されます。</p>
+      <div id="profile-fields"><!-- JSで生成 --></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" id="btn-save-profile">保存</button>
     </div>
   </div>
 </div>

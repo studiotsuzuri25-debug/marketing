@@ -148,34 +148,70 @@
     return null;
   }
 
-  /* テーマから調査クエリを組み立てる（AI不要のテンプレート方式で確実に）
-     SNS・Instagram系の調査はどのレベルでも必ず含める */
-  function buildQueries(topic, count) {
+  /* 主要キーワードをテーマ／自社情報から抽出（業種語の推定に使う） */
+  function coreKeyword(topic, opts) {
+    if (opts && opts.company) return opts.company;
+    const t = String(topic || '').replace(/\s+/g, ' ');
+    return t.slice(0, 30);
+  }
+
+  /* テーマ・エリア・モードから検索エンジン用クエリを組み立てる。
+     実店舗・Instagramアカウント・競合・口コミの実地調査を重視する。 */
+  function buildQueries(topic, count, opts) {
+    opts = opts || {};
     const t = topic.replace(/\s+/g, ' ').slice(0, 60);
-    const sns = [
-      t + ' Instagram トレンド 人気 ハッシュタグ',
-      t + ' インスタ映え 人気投稿 傾向 バズ',
-      t + ' SNS 口コミ 評判 話題',
+    const area = (opts.area || '').trim();
+    const areaPrefix = area ? area + ' ' : '';
+
+    // 実店舗・エリア調査（検索エンジンで実在の店舗を探す）
+    const local = [
+      areaPrefix + t + ' 店舗 一覧 おすすめ',
+      areaPrefix + t + ' 人気 ランキング 口コミ',
     ];
+    // Instagram アカウント/ハッシュタグ調査（公開Web経由で実在アカウントを探す）
+    const insta = [
+      t + ' ' + areaPrefix + 'Instagram 人気アカウント',
+      'instagram.com ' + areaPrefix + t + ' 公式',
+      t + ' インスタ 人気 ハッシュタグ 投稿 傾向',
+    ];
+    // 競合・口コミの深掘り
+    const comp = [];
+    if (opts.competitors) {
+      String(opts.competitors).split(/[\n,、･・]+/).map(function (s) { return s.trim(); })
+        .filter(Boolean).slice(0, 4).forEach(function (c) {
+          comp.push(c + ' 口コミ 評判 料金 サービス');
+        });
+    }
     const base = [
       t + ' 市場規模 統計 最新',
-      t + ' 競合 シェア 比較',
-      t + ' 業界 動向 ニュース',
-      t + ' 消費者 調査 アンケート',
-      t + ' 口コミ レビュー 評価',
-      t + ' 価格 相場',
-      t + ' 課題 リスク 規制',
+      areaPrefix + t + ' 競合 比較',
+      t + ' 口コミ レビュー 評判',
+      t + ' 料金 相場 価格',
+      t + ' 業界 動向 ニュース 最新',
+      t + ' 消費者 調査 トレンド',
     ];
-    const snsCount = count >= 8 ? 3 : count >= 5 ? 2 : 1;
-    return base.slice(0, Math.max(1, count - snsCount)).concat(sns.slice(0, snsCount));
+
+    // モード別に優先順位を決めて件数分だけ返す
+    let ordered;
+    if (opts.mode === 'competitor') {
+      ordered = comp.concat(local, insta.slice(0, 2), base);
+    } else {
+      ordered = base.slice(0, 3).concat(local.slice(0, 1), insta.slice(0, 2), base.slice(3));
+    }
+    // 重複除去
+    const seen = {};
+    ordered = ordered.filter(function (q) { if (seen[q]) return false; seen[q] = 1; return true; });
+    // 件数を確保（不足時はlocal/instaで補う）
+    if (ordered.length < count) ordered = ordered.concat(local, insta);
+    return ordered.slice(0, Math.max(3, count));
   }
 
   /**
    * 自律リサーチを実行
    * @returns {Promise<{digest:string, results:Array<{query,via}>, failed:number}>}
    */
-  async function run(topic, queryCount, totalCap, signal, onProgress) {
-    const tasks = buildQueries(topic, queryCount).map(function (q) {
+  async function run(topic, queryCount, totalCap, signal, onProgress, opts) {
+    const tasks = buildQueries(topic, queryCount, opts).map(function (q) {
       return { label: q, fn: function () { return researchQuery(q, signal); } };
     });
     // キーワード調査は常時実行（Google検索需要とトレンド）
