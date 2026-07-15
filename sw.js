@@ -1,7 +1,7 @@
 /* Service Worker — アプリシェルのキャッシュと通知クリック処理 */
 'use strict';
 
-const CACHE_NAME = 'aml-cache-v19';
+const CACHE_NAME = 'aml-cache-v20';
 const APP_SHELL = [
   './',
   'index.html',

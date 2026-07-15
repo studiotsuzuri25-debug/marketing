@@ -12,39 +12,39 @@
       agents: 8,
       agentTokens: 1024,
       synthTokens: 4500,
-      reportCap: 3000,
-      charts: 2,
+      reportCap: 3500,
+      charts: 4,
       sourceChars: 12000,
       researchQueries: 3,
       researchChars: 8000,
       instruction: '要点のみを簡潔にまとめてください。箇条書き中心で、全体で400字程度。最重要ポイント3つと結論を必ず含めてください。',
-      synthInstruction: 'コンパクトで読みやすい資料（A4で2〜3ページ相当）にまとめてください。',
+      synthInstruction: 'コンパクトでも戦略的な資料（A4で4〜5ページ相当）にまとめてください。各章に図表を入れ、要点を可視化してください。',
     },
     2: {
       name: 'Lv.2 スタンダード',
       agents: 16,
       agentTokens: 2048,
       synthTokens: 8192,
-      reportCap: 5000,
-      charts: 4,
+      reportCap: 6000,
+      charts: 7,
       sourceChars: 24000,
       researchQueries: 5,
       researchChars: 14000,
       instruction: '担当分野についてバランス良く分析してください。見出しと箇条書きを使い、全体で800〜1200字程度。根拠・示唆・推奨アクションを含めてください。',
-      synthInstruction: '標準的なビジネスレポート（A4で5〜8ページ相当）としてまとめてください。表も適宜使ってください。',
+      synthInstruction: '経営会議で使える本格的な戦略レポート（A4で8〜12ページ相当）としてまとめてください。3C/SWOT/4P/ファイブフォース/ポジショニングマップ等のフレームワークを適切に用い、各章に図表と比較表を豊富に盛り込んでください。',
     },
     3: {
       name: 'Lv.3 ディープ',
       agents: 28,
       agentTokens: 4096,
       synthTokens: 8192,
-      reportCap: 8000,
-      charts: 6,
+      reportCap: 9000,
+      charts: 12,
       sourceChars: 48000,
       researchQueries: 8,
       researchChars: 24000,
       instruction: '担当分野について、極めて詳細かつ徹底的に分析してください。定量的な推定値（推定と明記）、複数の視点、具体例、反論の検討、詳細な推奨アクションを含め、見出し・表・箇条書きを駆使して2000字以上の深い報告をしてください。',
-      synthInstruction: '非常に詳細で網羅的な本格レポートとしてまとめてください。各章を深く掘り下げ、表・比較・数値目安・ロードマップを盛り込み、そのまま経営会議に出せる完成度にしてください。',
+      synthInstruction: '極めて詳細かつ網羅的なコンサルティング水準の戦略レポート（A4で15ページ以上相当）としてまとめてください。3C/SWOT/クロスSWOT/4P/4C/ファイブフォース/バリューチェーン/ポジショニングマップ/STP/カスタマージャーニー等のフレームワークを駆使し、各章に複数の図表・比較表・数値目安・時系列ロードマップを盛り込み、具体的な打ち手を優先度・期待効果・必要リソース付きで提示してください。',
     },
   };
 
@@ -94,6 +94,7 @@
     sourceNames: [],
     researchDigest: '',
     researchCount: 0,
+    researchImages: [],
     historyId: null,
     usage: null,
   };
@@ -580,13 +581,18 @@
       '【分析レベル】' + lv.name + '\n' +
       '【指示】\n以下の' + done.length + '体のエージェントの報告をすべて統合し、市場分析資料を作成してください。\n' +
       lv.synthInstruction + '\n\n' +
-      '資料の構成:\n' +
+      '資料の構成（各章に必ず図表を入れ、戦略的な示唆まで踏み込むこと）:\n' +
       '1. タイトル（# 見出し）と作成概要\n' +
-      '2. エグゼクティブサマリー（冒頭に必ずKPIカードを置く）\n' +
-      '3. 市場分析の本編（章立てして各報告の知見を統合。SNS・Instagramトレンド分析の章と、検索キーワード・AI検索トレンド分析の章を必ず含める）\n' +
-      '4. 戦略提言・推奨アクション\n' +
-      '5. リスクと留意点\n' +
-      '6. 付録: 分析チーム一覧・出典一覧（参照した資料・自動調査・URL）' + '\n\n' +
+      '2. エグゼクティブサマリー（冒頭に必ずKPIカードを置き、結論・推奨アクションを先に述べる）\n' +
+      '3. 市場環境分析（市場規模・成長率の時系列グラフ、セグメント別構成、PEST/マクロtrend）\n' +
+      '4. 顧客・ターゲット分析（ペルソナ、ニーズ、カスタマージャーニー）\n' +
+      '5. 競合分析（競合比較表、ポジショニングマップ=radar/散布、シェア構成=pie/donut。' + (state.mode === 'competitor' ? '自社と競合の項目別比較表を必ず入れる' : '主要プレイヤーの比較') + '）\n' +
+      '6. SNS・Instagramトレンド分析（人気ハッシュタグ・投稿傾向・言及数推移グラフ）\n' +
+      '7. 検索キーワード・AI検索トレンド分析（需要キーワード表、検索意図の分類）\n' +
+      '8. フレームワーク分析（3C・SWOT/クロスSWOT・4P・ファイブフォース等を該当レベルに応じて）\n' +
+      '9. 戦略提言・推奨アクション（優先度・期待効果・必要リソース・時系列ロードマップ表）\n' +
+      '10. リスクと留意点\n' +
+      '11. 付録: 分析チーム一覧・出典一覧（参照した資料・自動調査・URL）' + '\n\n' +
       '【正確性のルール】\n' +
       '- 各章の重要な主張・数値には出典（資料番号・自動調査番号・URL・担当エージェント名、または「推定」）を付記する\n' +
       '- 出典が確認できない情報は「推定」「未確認」と明記し、事実として断定しない\n\n' +
@@ -604,9 +610,16 @@
       '```chart\n{"type":"radar","title":"競合ポジショニング比較（推定）","labels":["価格","品質","認知度","チャネル","独自性"],"series":[{"name":"自社想定","data":[3,4,2,2,5]},{"name":"競合A","data":[4,4,5,5,3]}]}\n```\n' +
       'ルール:\n' +
       '- グラフを最低' + lv.charts + '個、内容に合わせて異なるtypeを使い分けて本文の適切な位置に埋め込む（推移=line/bar、構成比=pie/donut、ランキング=hbar、多軸比較=radar）\n' +
-      '- 数値は報告・資料の値を使い、無い場合は妥当な推定値を入れてタイトルか注記に「推定」と明記する\n' +
-      '- JSONは厳密に有効な形式で書く（コメント・末尾カンマ・全角引用符は禁止）\n' +
-      '- Markdownの表も適宜併用する\n\n' +
+      '- KPIカードは複数の章で使ってよい。各章に最低1つは図表（グラフ/表/KPI）を入れる\n' +
+      '- Markdownの比較表を各分析章に必ず入れる（競合比較・項目別評価・施策一覧など）\n' +
+      '- 数値は報告・自動調査・資料の値を使い、無い場合は妥当な推定値を入れてタイトルか注記に「推定」と明記する\n' +
+      '- JSONは厳密に有効な形式で書く（コメント・末尾カンマ・全角引用符は禁止）\n\n' +
+      '【画像の引用】\n' +
+      (state.researchImages && state.researchImages.length
+        ? '以下は自動Web調査で見つかった実在の画像URLです。資料の関連する箇所に ![説明](画像URL) の形式で適宜引用してください（最大' +
+          Math.min(state.researchImages.length, 8) + '枚程度）。必ずこのリストのURLをそのまま使い、URLを改変・創作しないこと。\n' +
+          state.researchImages.slice(0, 8).map(function (u, i) { return (i + 1) + '. ' + u; }).join('\n') + '\n\n'
+        : 'Web画像の候補は見つかりませんでした。画像URLを創作してはいけません。画像の代わりにグラフ・表で可視化してください。\n\n') +
       '【エージェントからの報告】\n\n' + reports;
 
     let text = null;
@@ -791,6 +804,7 @@
     state.sourceNames = Sources.listNames();
     state.researchDigest = '';
     state.researchCount = 0;
+    state.researchImages = [];
     state.settings.autoResearch = $('#research-input').checked;
     saveSettings();
     state.historyId = null;
@@ -841,6 +855,7 @@
           if (signal.aborted) return;
           state.researchDigest = research.digest;
           state.researchCount = research.results.length;
+          state.researchImages = research.images || [];
           $('#run-topic').textContent += '｜自動調査 ' + state.researchCount + '件' +
             (research.failed ? '（' + research.failed + '件取得失敗）' : '');
         } catch (e) {
@@ -1152,6 +1167,9 @@
       '.kpi-label{font-size:11px;color:#7b8698}' +
       '.kpi-value{font-size:21px;font-weight:700;color:#1c2740;line-height:1.3;margin-top:2px}' +
       '.kpi-note{font-size:11px;color:#5d6b80;margin-top:2px}' +
+      '.report-img{margin:18px 0;text-align:center;page-break-inside:avoid}' +
+      '.report-img img{max-width:100%;height:auto;border-radius:6px;border:1px solid #e3e8ef}' +
+      '.report-img figcaption{font-size:11.5px;color:#7b8698;margin-top:6px}' +
       'footer{margin-top:48px;font-size:12px;color:#8a94a6;border-top:1px solid #e2e6ee;padding-top:12px}' +
       '@media print{body{padding:0}}' +
       '</style></head><body>' + body +

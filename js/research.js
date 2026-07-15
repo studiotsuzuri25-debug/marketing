@@ -239,14 +239,27 @@
     }
     await Promise.all([lane(), lane()]);
 
-    if (!results.length) return { digest: '', results: [], failed: failed };
+    // 収集テキストから実在の画像URLを抽出（資料に引用できる本物のみ）
+    const imgSet = {};
+    const imgRe = /(https:\/\/[^\s)"']+\.(?:jpg|jpeg|png|webp|gif))(?:\?[^\s)"']*)?/gi;
+    const mdImgRe = /!\[[^\]]*\]\((https:\/\/[^)\s]+)\)/gi;
+    results.forEach(function (r) {
+      let m;
+      while ((m = mdImgRe.exec(r.content)) && Object.keys(imgSet).length < 20) imgSet[m[1]] = 1;
+      while ((m = imgRe.exec(r.content)) && Object.keys(imgSet).length < 20) imgSet[m[1]] = 1;
+    });
+    const images = Object.keys(imgSet).filter(function (u) {
+      return !/(sprite|icon|logo|avatar|1x1|pixel|blank|spacer|favicon|\.svg)/i.test(u);
+    }).slice(0, 12);
+
+    if (!results.length) return { digest: '', results: [], failed: failed, images: [] };
     const perCap = Math.max(2000, Math.floor(totalCap / results.length));
     const digest = results.map(function (r, i) {
       let c = r.content;
       if (c.length > perCap) c = c.slice(0, perCap) + '\n…（省略）';
       return '=== 自動調査' + (i + 1) + '（' + r.via + '｜検索語: ' + r.query + '）===\n' + c;
     }).join('\n\n');
-    return { digest: digest, results: results, failed: failed };
+    return { digest: digest, results: results, failed: failed, images: images };
   }
 
   window.Research = { run: run };
