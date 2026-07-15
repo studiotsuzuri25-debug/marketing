@@ -140,8 +140,10 @@ h1, h2, h3 { line-height: 1.35; font-weight: 600; }
 /* ================= Header ================= */
 .app-header {
   display: flex; align-items: center; justify-content: space-between;
+  /* PWA/ノッチ端末でステータスバー（時刻・電波）と重ならないよう上部にセーフエリアを確保 */
   padding: 13px 24px;
-  background: color-mix(in srgb, var(--bg-soft) 88%, transparent);
+  padding-top: calc(13px + env(safe-area-inset-top));
+  background: color-mix(in srgb, var(--bg-soft) 92%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
   box-shadow: 0 1px 0 var(--accent-soft);
@@ -697,7 +699,7 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--g
 /* ================= Responsive ================= */
 @media (max-width: 720px) {
   main { padding: 18px 14px 60px; }
-  .app-header { padding: 12px 14px; }
+  .app-header { padding: 12px 14px; padding-top: calc(12px + env(safe-area-inset-top)); }
   .brand p { display: none; }
   .btn-lg { width: 100%; }
   .setup-card { padding: 22px 18px; margin-top: 1vh; }
@@ -726,7 +728,7 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--g
   .brand h1 { font-size: 18px; }
   .brand p { display: none; }
   .header-actions { gap: 5px; }
-  .app-header { gap: 8px; padding: 10px 12px; }
+  .app-header { gap: 8px; padding: 10px 12px; padding-top: calc(10px + env(safe-area-inset-top)); }
   #btn-settings .btn-label { display: none; }
   #btn-account .btn-label { display: none; }
   #btn-history, #btn-theme, #btn-settings, #btn-account { width: 36px; height: 36px; padding: 0; justify-content: center; }
