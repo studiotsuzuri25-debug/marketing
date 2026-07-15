@@ -664,7 +664,7 @@
       card.id = 'agent-card-' + agent.id;
       card.style.animationDelay = (i * 40) + 'ms';
       card.innerHTML =
-        '<div class="agent-avatar">' + Agents.avatarSVG(agent.name + agent.role) + '</div>' +
+        '<div class="agent-avatar">' + Agents.avatarSVG(agent.name + agent.role, agent.name) + '</div>' +
         '<div class="agent-name">' + escapeText(agent.name) + '</div>' +
         '<div class="agent-role">' + escapeText(agent.role) + '</div>' +
         '<div class="status-slot">' + statusHTML(agent) + '</div>';
@@ -683,7 +683,7 @@
     card.className = 'synth-card';
     card.id = 'synth-card';
     card.innerHTML =
-      '<div class="agent-avatar">' + Agents.avatarSVG(s.name + s.role) + '</div>' +
+      '<div class="agent-avatar">' + Agents.avatarSVG(s.name + s.role, s.name) + '</div>' +
       '<div class="texts">' +
       '<div class="synth-label">DOCUMENT AGENT</div>' +
       '<div class="agent-name">' + escapeText(s.name) + '</div>' +
@@ -709,7 +709,7 @@
 
   function openAgentModal(agent) {
     $('#agent-modal-profile').innerHTML =
-      '<div class="agent-avatar">' + Agents.avatarSVG(agent.name + agent.role) + '</div>' +
+      '<div class="agent-avatar">' + Agents.avatarSVG(agent.name + agent.role, agent.name) + '</div>' +
       '<div><div class="name">' + escapeText(agent.name) + '</div>' +
       '<div class="role">' + escapeText(agent.role) + '｜' + escapeText(agent.focus || '') + '</div></div>';
     let body;
