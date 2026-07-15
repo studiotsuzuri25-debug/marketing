@@ -7,7 +7,15 @@
 
    null のままの場合は、この端末内のみのローカルアカウント＋同期ファイル方式で動作します。
 */
-window.FIREBASE_CONFIG = null;
+window.FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCWLbYVhhAWqoG3HTs-8WYyCTjhvpA8C0U",
+  authDomain: "market-analytics-4768f.firebaseapp.com",
+  projectId: "market-analytics-4768f",
+  storageBucket: "market-analytics-4768f.firebasestorage.app",
+  messagingSenderId: "226654207297",
+  appId: "1:226654207297:web:0025442afc6eaf2a54b5c0",
+  measurementId: "G-64BKCWVRYB"
+};
 
 /* 貼り付け例（Firebaseコンソール → プロジェクトの設定 → マイアプリ からコピー）:
 window.FIREBASE_CONFIG = {
