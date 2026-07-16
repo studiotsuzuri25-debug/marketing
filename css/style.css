@@ -522,6 +522,10 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--g
 .usage-nums { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; font-family: var(--mono); }
 .usage-nums strong { color: var(--accent); font-weight: 700; }
 .usage-cost { color: var(--gold); }
+.usage-breakdown { margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 8px; display: grid; gap: 4px; }
+.ub-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 14px; font-size: 12px; }
+.ub-name { color: var(--text); font-weight: 600; }
+.ub-nums { color: var(--text-dim); font-family: var(--mono); }
 
 /* ================= Markdown body ================= */
 .markdown-body { font-size: 15px; overflow-wrap: anywhere; word-break: break-word; }
@@ -630,6 +634,16 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--g
   border-radius: var(--radius-sm); padding: 9px 12px; font-size: 14px; font-family: var(--mono);
 }
 .field input:focus { outline: none; border-color: var(--accent); box-shadow: var(--glow); }
+.field select {
+  width: 100%; background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--radius-sm); padding: 9px 12px; font-size: 14px;
+}
+.field select:focus { outline: none; border-color: var(--accent); box-shadow: var(--glow); }
+.pipeline-roles {
+  margin: 10px 0 4px; padding: 14px 16px; border: 1px solid var(--border);
+  border-left: 2px solid var(--accent); border-radius: var(--radius); background: var(--bg-card);
+}
+.pipeline-roles[hidden] { display: none; }
 .model-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .model-chip {
   display: inline-flex; align-items: center; gap: 6px;

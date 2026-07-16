@@ -118,15 +118,27 @@
   };
 
   function resetUsage() {
-    state.usage = { input: 0, output: 0, calls: 0, cost: 0, hasCost: false };
+    state.usage = { input: 0, output: 0, calls: 0, cost: 0, hasCost: false, byProvider: {} };
   }
-  function recordUsage(u) {
-    if (!state.usage) resetUsage();
-    state.usage.input += u.input || 0;
-    state.usage.output += u.output || 0;
-    state.usage.calls += 1;
-    const c = AI.estimateCost(state.settings.provider, currentModel(), u.input || 0, u.output || 0);
-    if (c != null) { state.usage.cost += c; state.usage.hasCost = true; }
+  /* 呼び出しごとに、どのプロバイダ・モデルを使ったかを渡して集計する。
+     2段階モードでは調査AIと戦略AIの使用量を個別に内訳表示するため byProvider に分けて記録する。 */
+  function usageFor(pk, model) {
+    return function (u) {
+      if (!state.usage) resetUsage();
+      if (!state.usage.byProvider) state.usage.byProvider = {};
+      state.usage.input += u.input || 0;
+      state.usage.output += u.output || 0;
+      state.usage.calls += 1;
+      const c = AI.estimateCost(pk, model, u.input || 0, u.output || 0);
+      if (c != null) { state.usage.cost += c; state.usage.hasCost = true; }
+      const bd = state.usage.byProvider[pk] ||
+        (state.usage.byProvider[pk] = { provider: pk, model: model, input: 0, output: 0, calls: 0, cost: 0, hasCost: false });
+      bd.input += u.input || 0;
+      bd.output += u.output || 0;
+      bd.calls += 1;
+      bd.model = model;
+      if (c != null) { bd.cost += c; bd.hasCost = true; }
+    };
   }
 
   /* 自社情報・競合指定・分析モードをプロンプトに埋め込むブロック */
@@ -186,13 +198,16 @@
   }
 
   function mergeSettings(s) {
-    const defaults = { provider: 'demo', concurrency: 4, notify: true, autoResearch: true, keys: {}, models: {}, profiles: [] };
+    const defaults = { provider: 'demo', pipeline: 'single', concurrency: 4, notify: true, autoResearch: true, keys: {}, models: {}, profiles: [] };
     s = s || {};
     const merged = Object.assign(defaults, s, {
       keys: Object.assign({}, s.keys),
       models: Object.assign({}, s.models),
+      // 2段階モードの担当AI（調査分析＝research / 戦略立案＝strategy）
+      roles: Object.assign({ research: 'perplexity', strategy: 'claude' }, s.roles),
       profiles: Array.isArray(s.profiles) ? s.profiles.slice() : [],
     });
+    if (merged.pipeline !== 'split') merged.pipeline = 'single';
     // 旧形式（単一 profile）を配列へ移行
     if ((!merged.profiles.length) && s.profile && Object.keys(s.profile).length) {
       merged.profiles = [Object.assign({ id: 'p_legacy' }, s.profile)];
@@ -222,10 +237,35 @@
     return Promise.resolve();
   }
   function currentModel() {
-    return state.settings.models[state.settings.provider] || AI.PROVIDERS[state.settings.provider].defaultModel;
+    return modelOf(state.settings.provider);
   }
   function currentKey() {
-    return (state.settings.keys[state.settings.provider] || '').trim();
+    return keyOf(state.settings.provider);
+  }
+  /* 任意プロバイダのキー・モデルを取得 */
+  function keyOf(pk) {
+    return (state.settings.keys[pk] || '').trim();
+  }
+  function modelOf(pk) {
+    const p = AI.PROVIDERS[pk];
+    return state.settings.models[pk] || (p && p.defaultModel) || '';
+  }
+  /* 工程（research=調査分析 / strategy=戦略立案）ごとの担当プロバイダ。
+     2段階モードでなければ従来どおり単一プロバイダを返す。 */
+  function providerForStage(stage) {
+    if (state.settings.pipeline === 'split' && state.settings.roles && state.settings.roles[stage]) {
+      return state.settings.roles[stage];
+    }
+    return state.settings.provider;
+  }
+  /* 今回の分析で実際に使うプロバイダの一覧（重複なし） */
+  function stageProviders() {
+    if (state.settings.pipeline === 'split') {
+      const r = providerForStage('research');
+      const s = providerForStage('strategy');
+      return r === s ? [r] : [r, s];
+    }
+    return [state.settings.provider];
   }
 
   /* ============ 設定画面 ============ */
@@ -331,6 +371,23 @@
       }
     });
 
+    // 2段階モード（調査AI／戦略AIの割り当て）
+    const roleOpts = Object.keys(AI.PROVIDERS).map(function (k) {
+      return '<option value="' + k + '">' + escapeText(AI.PROVIDERS[k].label) + '</option>';
+    }).join('');
+    const pipeInput = $('#pipeline-input');
+    const rolesBox = $('#pipeline-roles');
+    const rSel = $('#research-provider-select');
+    const sSel = $('#strategy-provider-select');
+    const roles = state.settings.roles || { research: 'perplexity', strategy: 'claude' };
+    rSel.innerHTML = roleOpts;
+    sSel.innerHTML = roleOpts;
+    rSel.value = roles.research || 'perplexity';
+    sSel.value = roles.strategy || 'claude';
+    pipeInput.checked = state.settings.pipeline === 'split';
+    rolesBox.hidden = !pipeInput.checked;
+    pipeInput.onchange = function () { rolesBox.hidden = !pipeInput.checked; };
+
     $('#concurrency-input').value = state.settings.concurrency;
     $('#concurrency-value').textContent = state.settings.concurrency;
     $('#notify-input').checked = !!state.settings.notify;
@@ -359,6 +416,13 @@
     document.querySelectorAll('[data-model-for]').forEach(function (input) {
       state.settings.models[input.dataset.modelFor] = input.value.trim() || AI.PROVIDERS[input.dataset.modelFor].defaultModel;
     });
+    // 2段階モードの設定を反映
+    state.settings.pipeline = $('#pipeline-input').checked ? 'split' : 'single';
+    if (!state.settings.roles) state.settings.roles = {};
+    const rSel = $('#research-provider-select');
+    const sSel = $('#strategy-provider-select');
+    if (rSel) state.settings.roles.research = rSel.value;
+    if (sSel) state.settings.roles.strategy = sSel.value;
     state.settings.concurrency = parseInt($('#concurrency-input').value, 10) || 4;
     state.settings.notify = $('#notify-input').checked;
     saveSettings();
@@ -367,6 +431,13 @@
   }
 
   function updateProviderBadge() {
+    if (state.settings.pipeline === 'split') {
+      const r = AI.PROVIDERS[providerForStage('research')] || {};
+      const s = AI.PROVIDERS[providerForStage('strategy')] || {};
+      $('#provider-badge').innerHTML = Icons.svg(r.icon || 'globe') +
+        '<span>' + (r.label || '') + ' → ' + (s.label || '') + '</span>';
+      return;
+    }
     const p = AI.PROVIDERS[state.settings.provider];
     $('#provider-badge').innerHTML = Icons.svg(p.icon) + '<span>' + p.label + '</span>';
   }
@@ -442,8 +513,10 @@
     }
     const corpus = (listText + '\n' + (digest || '')).trim();
 
+    // 競合抽出は「調査分析」工程なので research 担当AIを使う
+    const pk = providerForStage('research');
     // デモや検索テキストが無い場合はヒューリスティック抽出でフォールバック
-    if (state.settings.provider === 'demo' || !corpus) {
+    if (pk === 'demo' || !corpus) {
       return dedupeNames(seeds.concat(listNames, Research.extractCandidateNames(corpus, MAX_COMPETITORS, state.topic)), MAX_COMPETITORS);
     }
     try {
@@ -455,8 +528,8 @@
         'Web検索結果:\n' + corpus.slice(0, 16000) + '\n\n' +
         '出力形式（検索結果に実在が読み取れる固有名詞のみ。一般語・カテゴリ名・テーマ語は除外）:\n["店舗A","株式会社B",...]';
       const text = await AI.call({
-        provider: state.settings.provider, apiKey: currentKey(), model: currentModel(),
-        system: sys, prompt: prompt, maxTokens: 1200, signal: signal, onUsage: recordUsage,
+        provider: pk, apiKey: keyOf(pk), model: modelOf(pk),
+        system: sys, prompt: prompt, maxTokens: 1200, signal: signal, onUsage: usageFor(pk, modelOf(pk)),
       });
       const start = text.indexOf('['), end = text.lastIndexOf(']');
       let arr = [];
@@ -481,7 +554,9 @@
 
   /* ============ チーム編成 ============ */
   async function planTeam(topic, count, signal) {
-    if (state.settings.provider === 'demo') {
+    // チーム編成は調査分析の準備工程なので research 担当AIを使う
+    const pk = providerForStage('research');
+    if (pk === 'demo') {
       return Agents.buildLocalTeam(topic, count);
     }
     try {
@@ -505,14 +580,14 @@
         '出力形式（この形式のJSON配列のみを出力）:\n' +
         '[{"name":"Ethan","role":"市場規模アナリスト","icon":"chart","focus":"市場規模と成長率を推定する"}]';
       const text = await AI.call({
-        provider: state.settings.provider,
-        apiKey: currentKey(),
-        model: currentModel(),
+        provider: pk,
+        apiKey: keyOf(pk),
+        model: modelOf(pk),
         system: system,
         prompt: prompt,
         maxTokens: 4000,
         signal: signal,
-        onUsage: recordUsage,
+        onUsage: usageFor(pk, modelOf(pk)),
       });
       const start = text.indexOf('[');
       const end = text.lastIndexOf(']');
@@ -591,14 +666,17 @@
       '- AIの学習知識に基づく部分（その旨を明記）\n' +
       '- 推定・仮説の部分（推定の根拠・考え方も簡潔に）';
 
+    // 各エージェントの調査分析は research 担当AIを使う
+    const pk = providerForStage('research');
+    const pkModel = modelOf(pk);
     // レート制限(429)は待ち時間を読み取って粘り強くリトライする
     const maxAttempts = 5;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         const text = await AI.call({
-          provider: state.settings.provider,
-          apiKey: currentKey(),
-          model: currentModel(),
+          provider: pk,
+          apiKey: keyOf(pk),
+          model: pkModel,
           system: system,
           prompt: prompt,
           maxTokens: lv.agentTokens,
@@ -606,7 +684,7 @@
           demoRole: agent.role,
           demoTopic: state.topic,
           demoSourceCount: state.sourceNames.length,
-          onUsage: recordUsage,
+          onUsage: usageFor(pk, pkModel),
         });
         agent.report = text.trim();
         agent.status = 'done';
@@ -744,13 +822,16 @@
         : 'Web画像の候補は見つかりませんでした。画像URLを創作してはいけません。画像の代わりにグラフ・表で可視化してください。\n\n') +
       '【エージェントからの報告】\n\n' + reports;
 
+    // 統合・戦略立案は strategy 担当AIを使う
+    const pk = providerForStage('strategy');
+    const pkModel = modelOf(pk);
     let text = null;
     for (let attempt = 1; attempt <= 4; attempt++) {
       try {
         text = await AI.call({
-          provider: state.settings.provider,
-          apiKey: currentKey(),
-          model: currentModel(),
+          provider: pk,
+          apiKey: keyOf(pk),
+          model: pkModel,
           system: system,
           prompt: prompt,
           maxTokens: lv.synthTokens,
@@ -759,7 +840,7 @@
           demoTopic: state.topic,
           demoCount: done.length,
           demoSourceCount: state.sourceNames.length,
-          onUsage: recordUsage,
+          onUsage: usageFor(pk, pkModel),
         });
         break;
       } catch (e) {
@@ -898,12 +979,20 @@
       warning.hidden = false;
       return;
     }
-    const provider = AI.PROVIDERS[state.settings.provider];
-    if (provider.needsKey && !currentKey()) {
-      warning.textContent = provider.label + ' のAPIキーが未設定です。右上の「設定」から登録するか、デモモードを選択してください。';
+    const missingKey = stageProviders().filter(function (pk) {
+      const p = AI.PROVIDERS[pk];
+      return p && p.needsKey && !keyOf(pk);
+    });
+    if (missingKey.length) {
+      warning.textContent = missingKey.map(function (pk) { return (AI.PROVIDERS[pk] || {}).label || pk; }).join('・') +
+        ' のAPIキーが未設定です。右上の「設定」から登録するか、デモモードを選択してください。';
       warning.hidden = false;
       return;
     }
+    const pipelineLabel = state.settings.pipeline === 'split'
+      ? '調査 ' + ((AI.PROVIDERS[providerForStage('research')] || {}).label || '') +
+        ' → 戦略 ' + ((AI.PROVIDERS[providerForStage('strategy')] || {}).label || '')
+      : ((AI.PROVIDERS[state.settings.provider] || {}).label || '');
     if (window.Auth && Auth.isCloud() && !Auth.isLoggedIn()) {
       warning.textContent = 'このアプリはアカウント制です。右上の「ログイン」からログイン（または新規登録）してください。';
       warning.hidden = false;
@@ -948,7 +1037,7 @@
     $('#btn-stop').hidden = false;
     $('#btn-new').hidden = true;
     $('#run-topic').textContent = '【' + (state.mode === 'competitor' ? '自社と競合の分析' : '市場分析') + '】「' + topic + '」｜' +
-      LEVELS[state.level].name + '｜' + provider.label +
+      LEVELS[state.level].name + '｜' + pipelineLabel +
       (state.sourceNames.length ? '｜参考資料 ' + state.sourceNames.length + '件' : '');
     $('#agent-grid').innerHTML = '';
     $('#synth-slot').innerHTML = '';
@@ -1137,6 +1226,9 @@
         level: state.level,
         provider: state.settings.provider,
         model: currentModel(),
+        pipeline: state.settings.pipeline,
+        researchProvider: providerForStage('research'),
+        strategyProvider: providerForStage('strategy'),
         finalReport: state.finalReport,
         sourceNames: state.sourceNames,
         researchCount: state.researchCount,
@@ -1173,7 +1265,10 @@
     }
     list.innerHTML = entries.map(function (e) {
       const lv = (LEVELS[e.level] || {}).name || '';
-      const provider = (AI.PROVIDERS[e.provider] || {}).label || e.provider || '';
+      const provider = e.pipeline === 'split'
+        ? (((AI.PROVIDERS[e.researchProvider] || {}).label || e.researchProvider || '') + '→' +
+           ((AI.PROVIDERS[e.strategyProvider] || {}).label || e.strategyProvider || ''))
+        : ((AI.PROVIDERS[e.provider] || {}).label || e.provider || '');
       return '<div class="history-item" data-history-id="' + e.id + '">' +
         '<div class="h-main">' +
         '<div class="h-topic">' + escapeText(e.topic || '(無題)') + '</div>' +
@@ -1216,7 +1311,10 @@
     $('#btn-stop').hidden = true;
     $('#btn-new').hidden = false;
     $('#regen-bar').hidden = true;
-    const provider = (AI.PROVIDERS[entry.provider] || {}).label || entry.provider || '';
+    const provider = entry.pipeline === 'split'
+      ? ('調査 ' + ((AI.PROVIDERS[entry.researchProvider] || {}).label || entry.researchProvider || '') +
+         ' → 戦略 ' + ((AI.PROVIDERS[entry.strategyProvider] || {}).label || entry.strategyProvider || ''))
+      : ((AI.PROVIDERS[entry.provider] || {}).label || entry.provider || '');
     $('#run-topic').textContent = '「' + state.topic + '」｜' + ((LEVELS[state.level] || {}).name || '') + '｜' + provider +
       (state.researchCount ? '｜自動調査 ' + state.researchCount + '件' : '');
     renderGrid();
@@ -1243,35 +1341,74 @@
     $('#report-section').scrollIntoView({ behavior: 'smooth' });
   }
 
+  function costLabel(pk, hasCost, cost) {
+    if (pk === 'demo') return 'デモ（課金なし）';
+    if (hasCost) {
+      const jpy = Math.round(cost * 155);
+      return '約 $' + cost.toFixed(cost < 1 ? 4 : 2) + '（約 ' + jpy.toLocaleString('ja-JP') + '円）';
+    }
+    return '単価不明';
+  }
   function renderUsage(providerKey, modelName) {
     const el = $('#usage-bar');
     const u = state.usage;
     if (!u || !u.calls) { el.hidden = true; return; }
-    const pKey = providerKey || state.settings.provider;
-    const provider = (AI.PROVIDERS[pKey] || {}).label || pKey;
-    const model = modelName || currentModel();
     const total = u.input + u.output;
-    let costHtml = '';
-    if (pKey === 'demo') {
+    const bd = (u.byProvider && Object.keys(u.byProvider).length) ? u.byProvider : null;
+    const bdKeys = bd ? Object.keys(bd) : [];
+
+    // タイトル（工程別の複数AIか、単一AIか）
+    let titleLabel;
+    if (bdKeys.length > 1) {
+      titleLabel = bdKeys.map(function (k) { return (AI.PROVIDERS[k] || {}).label || k; }).join(' + ');
+    } else {
+      const pKey = bdKeys[0] || providerKey || state.settings.provider;
+      const model = (bd && bd[bdKeys[0]] && bd[bdKeys[0]].model) || modelName || currentModel();
+      titleLabel = ((AI.PROVIDERS[pKey] || {}).label || pKey) + ' / ' + model;
+    }
+
+    // 2段階（複数AI）のときは各AIの内訳を表示
+    let breakdownHtml = '';
+    if (bdKeys.length > 1) {
+      breakdownHtml = '<div class="usage-breakdown">' + bdKeys.map(function (k) {
+        const b = bd[k];
+        const label = (AI.PROVIDERS[k] || {}).label || k;
+        const t = b.input + b.output;
+        return '<div class="ub-row">' +
+          '<span class="ub-name">' + escapeText(label) + ' / ' + escapeText(b.model || '') + '</span>' +
+          '<span class="ub-nums">呼出 ' + b.calls + '回 ・ 合計 ' + t.toLocaleString('ja-JP') + ' トークン ・ ' +
+          escapeText(costLabel(k, b.hasCost, b.cost)) + '</span>' +
+          '</div>';
+      }).join('') + '</div>';
+    }
+
+    // 合計コスト
+    const onlyDemo = bdKeys.length ? bdKeys.every(function (k) { return k === 'demo'; }) : (state.settings.provider === 'demo');
+    let costHtml;
+    if (onlyDemo) {
       costHtml = '<span class="usage-cost">デモモード（課金なし）</span>';
     } else if (u.hasCost) {
       const usd = u.cost;
       const jpy = Math.round(usd * 155);
-      costHtml = '<span class="usage-cost">概算コスト: 約 $' + usd.toFixed(usd < 1 ? 4 : 2) + '（約 ' + jpy.toLocaleString('ja-JP') + '円）</span>';
+      costHtml = '<span class="usage-cost">概算コスト' + (bdKeys.length > 1 ? '合計' : '') + ': 約 $' +
+        usd.toFixed(usd < 1 ? 4 : 2) + '（約 ' + jpy.toLocaleString('ja-JP') + '円）</span>';
     } else {
       costHtml = '<span class="usage-cost">概算コスト: 単価不明のモデルのため算出不可</span>';
     }
+
     el.innerHTML =
       '<span class="usage-icon" data-icon="activity"></span>' +
       '<div class="usage-body">' +
-      '<div class="usage-title">AIクレジット使用量（' + escapeText(provider) + ' / ' + escapeText(model) + '）</div>' +
+      '<div class="usage-title">AIクレジット使用量（' + escapeText(titleLabel) + '）</div>' +
       '<div class="usage-nums">' +
       '<span>API呼び出し <strong>' + u.calls + '</strong> 回</span>' +
       '<span>入力 <strong>' + u.input.toLocaleString('ja-JP') + '</strong> トークン</span>' +
       '<span>出力 <strong>' + u.output.toLocaleString('ja-JP') + '</strong> トークン</span>' +
       '<span>合計 <strong>' + total.toLocaleString('ja-JP') + '</strong> トークン</span>' +
       costHtml +
-      '</div></div>';
+      '</div>' +
+      breakdownHtml +
+      '</div>';
     el.hidden = false;
     Icons.hydrate(el);
   }

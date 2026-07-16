@@ -216,6 +216,24 @@
 
       <div id="provider-config"><!-- JSで生成（APIキー・モデル入力） --></div>
 
+      <h3>2段階モード（調査AIと戦略AIを分ける）</h3>
+      <label class="check-row">
+        <input type="checkbox" id="pipeline-input">
+        <span class="check-icon" data-icon="activity"></span>
+        <span>先に「調査分析AI」が調べ、その結果をもとに「戦略立案AI」が資料を作成する<span class="hint-inline">（例: 調査＝Perplexity、戦略＝Claude）</span></span>
+      </label>
+      <div id="pipeline-roles" class="pipeline-roles" hidden>
+        <div class="field">
+          <label>調査分析AI<span class="hint-inline">（各エージェントのWeb調査・競合分析を担当）</span></label>
+          <select id="research-provider-select"></select>
+        </div>
+        <div class="field">
+          <label>戦略立案AI<span class="hint-inline">（全報告を統合し戦略資料を作成する統合役）</span></label>
+          <select id="strategy-provider-select"></select>
+        </div>
+        <p class="hint">各AIのAPIキー・モデルは上の「使用するAI」で事前に登録してください。2段階モードでは、調査担当と戦略担当の<strong>両方のキー</strong>が必要です。</p>
+      </div>
+
       <h3>同時実行数</h3>
       <p class="hint">一度に並列でAPIを呼び出すエージェント数。レート制限エラーが出る場合は減らしてください。</p>
       <div class="range-row">
