@@ -2,6 +2,14 @@
 
 このファイルは Claude Code が自動で読み込む指示書です。作業前に必ず `docs/HANDOFF.md`（ツールの全体像・設計・履歴）にも目を通してください。
 
+## セッション開始時の引き継ぎ（最初に必ず実施）
+
+新しいセッションは、作業を始める前に次を読んで前任セッションの内容を引き継ぐこと。
+1. `docs/obsidian/worklog.md` … 直近の作業ログ（新しい順）。**まずここで最新の状況を把握する。**
+2. `docs/HANDOFF.md` … ツールの全体像・設計・運用・履歴。
+3. 必要に応じて `git log --oneline -15` で最近の変更を確認する。
+引き継ぎ後、ユーザーへ「前回までの状況」を1〜3行で要約してから作業に入るとよい。
+
 ## プロジェクト概要
 - Agent Market Lab（AML）: マルチAIエージェント市場分析ツール。バニラJSの静的SPA + PWA。GitHub Pages配信。
 - 開発ブランチ: `claude/multi-agent-market-analysis-vm9lif` → `main` に ff-merge で反映。
