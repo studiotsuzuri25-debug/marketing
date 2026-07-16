@@ -6,11 +6,19 @@ repo: studiotsuzuri25-debug/marketing
 
 # Claude Code 作業ログ（AML）
 
-> このファイルは、ユーザーの「Obsidianに記録」要望を受けて Claude Code が追記する作業ログです。
+> このファイルは、ユーザーの「作業ログに記録」要望を受けて Claude Code が追記する作業ログです。
+> セッションが変わった際は、新しいセッションがまずこのファイルを読んで引き継ぎます。
 > 最新のエントリが上に来る**新しい順**で記録します。運用ルールはリポジトリ直下の `CLAUDE.md` を参照。
-> Obsidianからの参照方法は同じフォルダの `README.md` を参照。
 
 ---
+
+## 2026-07-16 07:46 (UTC) — Obsidian連携を取りやめ、リポジトリ内の作業ログに一本化
+
+- ユーザー判断により Obsidian連携は見送り。Obsidian固有ファイル（`docs/obsidian/README.md`）を削除。
+- 作業ログを `docs/obsidian/worklog.md` → `docs/worklog.md` へ移動し、Obsidianの記述を除去。
+- `CLAUDE.md` を更新: 記録トリガーを「作業ログに記録：…」に変更（→ `docs/worklog.md`）。
+  セッション開始時の引き継ぎは `docs/worklog.md` + `docs/HANDOFF.md` を読む運用は維持。
+- 結果: **リポジトリ内だけで完結するセッション引き継ぎ**（記録→次セッションが読む）が有効。
 
 ## 2026-07-16 06:24 (UTC) — Obsidian連携（Gitブリッジ）を構築 + 引き継ぎノート作成
 
