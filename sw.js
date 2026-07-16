@@ -1,7 +1,7 @@
 /* Service Worker — アプリシェルのキャッシュと通知クリック処理 */
 'use strict';
 
-const CACHE_NAME = 'aml-cache-v32';
+const CACHE_NAME = 'aml-cache-v33';
 const APP_SHELL = [
   './',
   'index.html',
@@ -56,8 +56,6 @@ self.addEventListener('fetch', function (event) {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
-  // サーバー関数(/api/*)はキャッシュせず常にネットワークへ（認証・鍵中継のため）
-  if (url.pathname.indexOf('/api/') === 0 || url.pathname.indexOf('api/') === 0) return;
 
   event.respondWith(
     caches.match(req, { ignoreSearch: true }).then(function (cached) {

@@ -132,16 +132,6 @@
     try { return JSON.parse(snap.data().data); } catch (e) { return null; }
   }
 
-  /* サーバー関数(/api)へ渡すFirebase IDトークンを取得（未ログインならnull） */
-  async function getIdToken() {
-    try {
-      await init();
-      const user = auth && auth.currentUser;
-      if (!user) return null;
-      return await user.getIdToken();
-    } catch (e) { return null; }
-  }
-
   window.Cloud = {
     isConfigured: isConfigured,
     init: init,
@@ -152,6 +142,5 @@
     waitUser: waitUser,
     saveBlob: saveBlob,
     loadBlob: loadBlob,
-    getIdToken: getIdToken,
   };
 })();
