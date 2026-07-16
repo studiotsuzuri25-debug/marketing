@@ -406,17 +406,75 @@
     }
   }
 
-  async function callAI(opts) {
-    switch (opts.provider) {
-      case 'demo':   return demoReport(opts);
-      case 'claude': return withTimeout(opts, callClaude);
-      case 'openai': return withTimeout(opts, function (o) { return callOpenAICompat('https://api.openai.com/v1', o, true); });
-      case 'grok':   return withTimeout(opts, function (o) { return callOpenAICompat('https://api.x.ai/v1', o, false); });
-      case 'perplexity': return withTimeout(opts, function (o) { return callOpenAICompat('https://api.perplexity.ai', o, false); });
-      case 'gemini': return withTimeout(opts, callGemini);
-      default: throw new Error('未対応のプロバイダです: ' + opts.provider);
+  /* ===== サーバー中継モード（Vercelの環境変数キーを使う） ===== */
+  // どのプロバイダにサーバーキーが登録済みか（/api/config から取得）。GitHub Pages等では空のまま。
+  let serverProviders = null; // null=未取得, {} 以降=取得済み
+
+  async function loadServerConfig() {
+    try {
+      const res = await fetch('api/config', { headers: { 'accept': 'application/json' } });
+      if (!res.ok) { serverProviders = {}; return serverProviders; }
+      const data = await res.json();
+      serverProviders = (data && data.providers) || {};
+    } catch (e) {
+      serverProviders = {}; // サーバー関数が無い環境（静的ホスティング）
     }
+    return serverProviders;
+  }
+  function serverHas(provider) {
+    return !!(serverProviders && serverProviders[provider]);
   }
 
-  window.AI = { PROVIDERS: PROVIDERS, call: callAI, listModels: listModels, estimateCost: estimateCost };
+  /* サーバー関数経由でAIを呼ぶ（キーはサーバー内の環境変数のみ。ブラウザには出ない） */
+  async function callServer(opts) {
+    const token = window.Cloud && window.Cloud.getIdToken ? await window.Cloud.getIdToken() : null;
+    if (!token) {
+      const e = new Error('サーバーのAPIキーを使うにはログインが必要です。右上からログインしてください。');
+      e.status = 401;
+      throw e;
+    }
+    const res = await fetch('api/chat', {
+      method: 'POST',
+      signal: opts.signal,
+      headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + token },
+      body: JSON.stringify({
+        provider: opts.provider, model: opts.model,
+        system: opts.system, prompt: opts.prompt, maxTokens: opts.maxTokens,
+      }),
+    });
+    if (!res.ok) throw await readError(res);
+    const data = await res.json();
+    reportUsage(opts, data.usage || { input: 0, output: 0 });
+    return data.text || '';
+  }
+
+  async function callAI(opts) {
+    if (opts.provider === 'demo') return demoReport(opts);
+    // 個人キーが入力されていれば従来どおりブラウザから直接呼ぶ（その人の課金）
+    if (opts.apiKey) {
+      switch (opts.provider) {
+        case 'claude': return withTimeout(opts, callClaude);
+        case 'openai': return withTimeout(opts, function (o) { return callOpenAICompat('https://api.openai.com/v1', o, true); });
+        case 'grok':   return withTimeout(opts, function (o) { return callOpenAICompat('https://api.x.ai/v1', o, false); });
+        case 'perplexity': return withTimeout(opts, function (o) { return callOpenAICompat('https://api.perplexity.ai', o, false); });
+        case 'gemini': return withTimeout(opts, callGemini);
+        default: throw new Error('未対応のプロバイダです: ' + opts.provider);
+      }
+    }
+    // 個人キーが無く、サーバーにキーがある場合はサーバー中継で呼ぶ（環境変数キー）
+    if (serverHas(opts.provider)) {
+      return withTimeout(opts, callServer);
+    }
+    throw new Error(((PROVIDERS[opts.provider] || {}).label || opts.provider) + ' のAPIキーが未設定です。設定でキーを入力するか、サーバー側の環境変数に登録してください。');
+  }
+
+  window.AI = {
+    PROVIDERS: PROVIDERS,
+    call: callAI,
+    listModels: listModels,
+    estimateCost: estimateCost,
+    loadServerConfig: loadServerConfig,
+    serverHas: serverHas,
+    serverProviders: function () { return serverProviders || {}; },
+  };
 })();

@@ -627,6 +627,13 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--g
 }
 .provider-config-block { margin-top: 16px; }
 .provider-config-block[hidden] { display: none; }
+.server-key-note {
+  color: var(--accent);
+  border: 1px solid var(--accent-soft); border-left: 2px solid var(--accent);
+  border-radius: var(--radius-sm); padding: 9px 12px; margin: 0 0 12px;
+  display: flex; gap: 8px; align-items: flex-start; line-height: 1.5;
+}
+.server-key-note .icon { flex-shrink: 0; margin-top: 2px; }
 .field { margin-bottom: 12px; }
 .field label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 5px; }
 .field input {

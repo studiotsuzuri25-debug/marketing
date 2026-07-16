@@ -250,6 +250,14 @@
     const p = AI.PROVIDERS[pk];
     return state.settings.models[pk] || (p && p.defaultModel) || '';
   }
+  /* そのプロバイダで分析を開始できるか（個人キー or サーバー環境変数キーがある） */
+  function providerUsable(pk) {
+    const p = AI.PROVIDERS[pk];
+    if (!p) return false;
+    if (!p.needsKey) return true; // デモ
+    return !!keyOf(pk) || (AI.serverHas && AI.serverHas(pk));
+  }
+
   /* 工程（research=調査分析 / strategy=戦略立案）ごとの担当プロバイダ。
      2段階モードでなければ従来どおり単一プロバイダを返す。 */
   function providerForStage(stage) {
@@ -290,8 +298,15 @@
       block.hidden = state.settings.provider !== key;
       let inner = '';
       if (p.needsKey) {
+        if (AI.serverHas && AI.serverHas(key)) {
+          inner +=
+            '<p class="hint server-key-note">' + Icons.svg('shield') +
+            ' このAIは<strong>サーバー側にキーが登録済み</strong>です。APIキー欄は<strong>空欄のままでOK</strong>（ログインすればサーバーのキーで動作します）。' +
+            'ご自身のキーで課金したい場合のみ、下欄に入力してください。</p>';
+        }
         inner +=
           '<div class="field"><label>' + p.label + ' APIキー' +
+          ((AI.serverHas && AI.serverHas(key)) ? '（任意）' : '') +
           (p.keyUrl ? '（<a href="' + p.keyUrl + '" target="_blank" rel="noopener" style="color:var(--accent)">取得はこちら</a>）' : '') +
           '</label>' +
           '<input type="password" data-key-for="' + key + '" placeholder="' + (p.keyPlaceholder || '') + '" value="' +
@@ -979,13 +994,10 @@
       warning.hidden = false;
       return;
     }
-    const missingKey = stageProviders().filter(function (pk) {
-      const p = AI.PROVIDERS[pk];
-      return p && p.needsKey && !keyOf(pk);
-    });
+    const missingKey = stageProviders().filter(function (pk) { return !providerUsable(pk); });
     if (missingKey.length) {
       warning.textContent = missingKey.map(function (pk) { return (AI.PROVIDERS[pk] || {}).label || pk; }).join('・') +
-        ' のAPIキーが未設定です。右上の「設定」から登録するか、デモモードを選択してください。';
+        ' のAPIキーが未設定です。右上の「設定」からキーを登録するか、サーバー側の環境変数に登録してください（デモモードも選べます）。';
       warning.hidden = false;
       return;
     }
@@ -1918,6 +1930,14 @@
     setupAccountEvents();
     setupMenuEvents();
     registerServiceWorker();
+
+    // サーバー(環境変数)キーの利用可否を取得（Vercel等）。静的ホスティングでは自動的に無効。
+    if (AI.loadServerConfig) {
+      AI.loadServerConfig().then(function () {
+        // 設定モーダルが開いていれば注記を反映
+        if (!$('#settings-modal').hidden) renderSettings();
+      });
+    }
 
     // 自律リサーチのオン/オフ
     $('#research-input').checked = state.settings.autoResearch !== false;

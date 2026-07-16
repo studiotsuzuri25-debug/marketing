@@ -1,0 +1,10 @@
+{
+  "name": "agent-market-lab",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "マルチAIエージェント市場分析ツール（静的フロント + Vercelサーバー関数でAPIキーを隠す）",
+  "dependencies": {
+    "jose": "^5.9.6"
+  }
+}
