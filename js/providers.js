@@ -163,12 +163,13 @@
   }
 
   async function callGemini(opts) {
+    // APIキーはURLではなくヘッダ(x-goog-api-key)で送る（URLは履歴・ログ・Referer等に残りやすいため）
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/' +
-      encodeURIComponent(opts.model) + ':generateContent?key=' + encodeURIComponent(opts.apiKey);
+      encodeURIComponent(opts.model) + ':generateContent';
     const res = await fetch(url, {
       method: 'POST',
       signal: opts.signal,
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': opts.apiKey },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: opts.system }] },
         contents: [{ role: 'user', parts: [{ text: opts.prompt }] }],
@@ -334,7 +335,9 @@
       return ['sonar', 'sonar-pro', 'sonar-reasoning', 'sonar-reasoning-pro', 'sonar-deep-research'];
     }
     if (provider === 'gemini') {
-      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&key=' + encodeURIComponent(apiKey));
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=100', {
+        headers: { 'x-goog-api-key': apiKey },
+      });
       if (!r.ok) throw await readError(r);
       const d = await r.json();
       return (d.models || [])
