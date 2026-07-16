@@ -309,13 +309,18 @@
         <div class="field"><label>ID（3文字以上の半角英数字）</label><input type="text" id="auth-id" autocomplete="username" autocapitalize="off"></div>
         <div class="field"><label>パスワード（8文字以上）</label><input type="password" id="auth-pw" autocomplete="current-password"></div>
         <div class="field" id="auth-pw2-field" hidden><label>パスワード（確認）</label><input type="password" id="auth-pw2" autocomplete="new-password"></div>
+        <label class="check-row auth-remember">
+          <input type="checkbox" id="auth-remember" checked>
+          <span class="check-icon" data-icon="shield"></span>
+          <span>この端末でログインを保持する<span class="hint-inline">（次回からパスワード入力を省略します。共有端末ではオフに）</span></span>
+        </label>
         <p class="warning" id="auth-error" hidden></p>
         <button class="btn btn-primary" id="btn-auth-submit">ログイン</button>
 
         <div id="google-block" hidden>
           <div class="auth-divider"><span>または</span></div>
           <button class="btn btn-ghost btn-icon-text" id="btn-google"><span data-icon="globe"></span><span class="btn-label">Googleアカウントでログイン</span></button>
-          <p class="hint">Googleでログインする場合も、設定（APIキー等）を暗号化するための<strong>データ保護用パスワード</strong>が必要です。上の「パスワード」欄に<strong>全端末で共通のパスワード（8文字以上）</strong>を入力してからこのボタンを押してください（IDの入力は不要）。</p>
+          <p class="hint">初回のみ、設定（APIキー等）を暗号化するための<strong>データ保護用パスワード</strong>を上の「パスワード」欄に入力してからこのボタンを押してください（全端末で共通・8文字以上、IDは不要）。<strong>「この端末でログインを保持する」をオンにしておけば、次回からはパスワード入力なしで自動的にログイン</strong>されます。別の端末では初回だけ同じパスワードが必要です。</p>
         </div>
 
         <div id="sync-import-block">
@@ -328,7 +333,7 @@
 
       <div id="account-logged-in" hidden>
         <p>ログイン中: <strong id="account-current"></strong></p>
-        <p class="hint">設定（APIキー含む）はパスワードから生成した鍵でAES-256暗号化され、この端末のブラウザ内にのみ保存されています。</p>
+        <p class="hint">設定（APIキー含む）はパスワードから生成した鍵でAES-256暗号化され、この端末のブラウザ内にのみ保存されています。「この端末でログインを保持」を有効にしている場合、復号鍵は<strong>取り出し不可の形式</strong>でこの端末に保管され、次回から自動でログインします。共有・公共端末では使用後に必ずログアウトしてください。</p>
         <div class="account-actions">
           <button class="btn btn-ghost btn-icon-text" id="btn-sync-export"><span data-icon="download"></span><span class="btn-label">同期ファイルを書き出す</span></button>
           <button class="btn btn-danger" id="btn-logout">ログアウト</button>

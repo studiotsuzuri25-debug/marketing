@@ -1573,6 +1573,8 @@
     $('#sync-import-block').hidden = cloud;
     $('#btn-sync-export').hidden = cloud;
     $('#google-block').hidden = !cloud;
+    const rememberBox = $('#auth-remember');
+    if (rememberBox && !loggedIn) rememberBox.checked = Auth.isRemembered() ? true : rememberBox.checked;
     $('#cloud-status').innerHTML = cloud
       ? Icons.svg('globe') + ' クラウド同期: <strong>有効</strong> — 同じID・パスワードでどの端末（PC・タブレット・スマホのブラウザ）からでも利用できます。'
       : Icons.svg('lock') + ' クラウド同期: 無効 — アカウントはこの端末内に保存されます（別端末へは同期ファイルで移行）。';
@@ -1613,6 +1615,8 @@
   async function submitAuth() {
     const id = $('#auth-id').value;
     const pw = $('#auth-pw').value;
+    const remember = $('#auth-remember');
+    if (remember) Auth.setRemember(remember.checked);
     try {
       if (authMode === 'register') {
         if (pw !== $('#auth-pw2').value) throw new Error('確認用パスワードが一致しません。');
@@ -1654,6 +1658,8 @@
     $('#btn-logout').addEventListener('click', doLogout);
     $('#btn-google').addEventListener('click', async function () {
       const pw = $('#auth-pw').value;
+      const remember = $('#auth-remember');
+      if (remember) Auth.setRemember(remember.checked);
       try {
         await Auth.loginGoogle(pw, state.settings);
         $('#auth-pw').value = '';

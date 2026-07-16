@@ -7,12 +7,22 @@
   'use strict';
 
   const STORE_KEY = 'aml_accounts_v1';
-  const SESSION_KEY = 'aml_session_v1';
+  const SESSION_KEY = 'aml_session_v1';   // タブ単位（sessionStorage）
+  const REMEMBER_KEY = 'aml_remember_v1'; // 端末単位（localStorage）
   const PBKDF2_ITERATIONS = 310000;
   const CHECK_PLAINTEXT = 'aml-password-check-v1';
 
   let currentId = null;
   let currentKey = null; // CryptoKey（メモリ上のみ）
+  let rememberDevice = true; // この端末でログインを保持するか（次回パスワード入力を省略）
+
+  function safeParse(s) {
+    try { return s ? JSON.parse(s) : null; } catch (e) { return null; }
+  }
+  function clearSessionMarkers() {
+    sessionStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(REMEMBER_KEY);
+  }
 
   function cloudEnabled() {
     return !!(window.Cloud && window.Cloud.isConfigured());
@@ -209,29 +219,44 @@
     }).catch(function () {});
   }
 
+  /* セッションを保存する。
+     - タブ単位（sessionStorage）: タブを閉じると失効
+     - 端末単位（localStorage, rememberDevice=true時）: 次回起動時もパスワード入力なしで復元
+     いずれの場合も、実際の復号鍵は「取り出し不可(non-extractable)」なCryptoKeyのまま
+     IndexedDBに保持する（生鍵素材・パスワードは保存しない）。 */
   async function persistSession(id) {
     try {
       await idbPut('sessionKey', currentKey); // non-extractable CryptoKey をそのまま保存
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({ id: id }));
+      if (rememberDevice) {
+        localStorage.setItem(REMEMBER_KEY, JSON.stringify({ id: id }));
+      } else {
+        localStorage.removeItem(REMEMBER_KEY);
+      }
     } catch (e) { /* セッション維持は任意機能 */ }
   }
 
   async function resumeSession() {
     try {
-      const raw = sessionStorage.getItem(SESSION_KEY);
-      if (!raw) { await idbDel('sessionKey'); return null; } // タブを閉じた＝失効。残った鍵も破棄
-      const s = JSON.parse(raw);
+      const tab = safeParse(sessionStorage.getItem(SESSION_KEY));
+      const remembered = safeParse(localStorage.getItem(REMEMBER_KEY));
+      const s = tab || remembered; // タブが生きていればそれを、無ければ端末記憶を使う
+      if (!s) { await idbDel('sessionKey'); return null; } // どちらも無ければ鍵も破棄
       if (cloudEnabled()) {
         const user = await window.Cloud.waitUser();
-        if (!user) { sessionStorage.removeItem(SESSION_KEY); await idbDel('sessionKey'); return null; }
+        if (!user) { clearSessionMarkers(); await idbDel('sessionKey'); return null; }
       } else {
         const store = loadStore();
         if (!store[s.id]) return null;
       }
       const key = await idbGet('sessionKey');
-      if (!key) { sessionStorage.removeItem(SESSION_KEY); return null; }
+      if (!key) { clearSessionMarkers(); return null; }
       currentKey = key;
       currentId = s.id;
+      // 端末記憶から復元した場合はタブセッションも張り直しておく
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ id: s.id }));
+      // 端末記憶が有効だった場合は次回のためにフラグを保つ
+      rememberDevice = !!remembered || rememberDevice;
       return s.id;
     } catch (e) {
       return null;
@@ -241,10 +266,13 @@
   function logout() {
     currentId = null;
     currentKey = null;
-    sessionStorage.removeItem(SESSION_KEY);
+    clearSessionMarkers();
     idbDel('sessionKey');
     if (cloudEnabled()) window.Cloud.logout();
   }
+
+  function setRemember(v) { rememberDevice = !!v; }
+  function isRemembered() { return !!safeParse(localStorage.getItem(REMEMBER_KEY)); }
 
   async function saveSettings(settings) {
     if (!currentId || !currentKey) throw new Error('ログインしていません。');
@@ -308,6 +336,8 @@
     loginGoogle: loginGoogle,
     logout: logout,
     resumeSession: resumeSession,
+    setRemember: setRemember,
+    isRemembered: isRemembered,
     saveSettings: saveSettings,
     loadSettings: loadSettings,
     exportFile: exportFile,
