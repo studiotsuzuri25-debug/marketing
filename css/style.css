@@ -699,6 +699,27 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--g
 .range-row { display: flex; align-items: center; gap: 14px; }
 .range-row input { flex: 1; accent-color: var(--accent); }
 #concurrency-value { font-family: var(--mono); color: var(--accent); }
+#comp-count-value { font-family: var(--mono); color: var(--accent); font-weight: 700; min-width: 1.6em; text-align: right; }
+.range-unit { color: var(--text-dim); font-size: 13px; }
+
+/* 競合分析の調査フォーム */
+.comp-scan {
+  border: 1px solid var(--border); border-left: 2px solid var(--accent);
+  border-radius: var(--radius); background: var(--bg-card);
+  padding: 14px 16px; margin: 10px 0 12px;
+}
+.comp-scan .field-label { margin-top: 12px; }
+.comp-scan .field-label:first-child { margin-top: 0; }
+.comp-scan input[type="text"], .comp-scan textarea {
+  width: 100%; background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--radius-sm); padding: 9px 12px; font-size: 14px;
+}
+.comp-scan input[type="text"]:focus, .comp-scan textarea:focus {
+  outline: none; border-color: var(--accent); box-shadow: var(--glow);
+}
+.comp-optional { margin: 4px 0 6px; }
+.comp-optional summary { cursor: pointer; color: var(--text-dim); font-size: 13px; padding: 4px 0; }
+.comp-optional summary:hover { color: var(--accent); }
 .note { margin-top: 20px; }
 .check-row {
   display: flex; align-items: flex-start; gap: 10px; cursor: pointer;

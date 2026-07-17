@@ -99,6 +99,10 @@
     mode: 'market',
     mainProfileId: null,
     competitors: '',
+    compArea: '',
+    compTarget: '',
+    compCount: 5,
+    compFocus: '',
     topic: '',
     level: 2,
     agents: [],
@@ -145,7 +149,17 @@
   function contextBlock() {
     let b = '';
     if (state.mode === 'competitor') {
-      b += '\n\n【分析モード】自社と競合の比較分析\n';
+      b += '\n\n【分析モード】競合分析\n';
+      if (state.compArea) b += '■ 調査エリア: ' + state.compArea + '\n';
+      if (state.compTarget) b += '■ 調査ターゲット（業種・カテゴリ）: ' + state.compTarget + '\n';
+      b += '■ 調査対象の数: ' + state.compCount + '社（この数の競合を特定し、全社を同じ詳しさで個別に報告する）\n';
+      if (state.compFocus) {
+        b += '■ 特に調査する内容（competitor focus・必ず各社について網羅）:\n' + state.compFocus + '\n';
+      } else {
+        b += '■ 調査観点: 価格帯・商品/サービス構成・強み/弱み・ターゲット層・立地/アクセス・集客チャネル・SNS運用・口コミ評価・予約/購入導線・差別化ポイント\n';
+      }
+      b += '【最重要】特定した競合は1社たりとも省略せず、全社を同じ粒度で詳しく報告すること。' +
+        '「1社だけ詳しく、他は簡単に」は禁止。各社ごとに個別の小見出しを立て、上記の調査観点を各社について具体的に記述し、そのうえで全社を横並びにした比較表も作成する。\n';
       const main = mainProfile();
       const prof = profileToTextOf(main);
       if (prof) {
@@ -495,7 +509,8 @@
 
   /* ============ 競合の特定（複数） ============ */
   const MAX_COMPETITORS = 20;
-  async function discoverCompetitors(digest, area, signal) {
+  async function discoverCompetitors(digest, area, targetCount, signal) {
+    const want = Math.min(Math.max(parseInt(targetCount, 10) || MAX_COMPETITORS, 1), MAX_COMPETITORS);
     // ユーザー指定の競合は必ず対象に含める
     const seeds = state.competitors
       ? state.competitors.split(/[\n,、･・]+/).map(function (s) { return s.trim(); }).filter(Boolean)
@@ -517,13 +532,14 @@
     const pk = providerForStage('research');
     // デモや検索テキストが無い場合はヒューリスティック抽出でフォールバック
     if (pk === 'demo' || !corpus) {
-      return dedupeNames(seeds.concat(listNames, Research.extractCandidateNames(corpus, MAX_COMPETITORS, state.topic)), MAX_COMPETITORS);
+      return dedupeNames(seeds.concat(listNames, Research.extractCandidateNames(corpus, want, state.topic)), want);
     }
     try {
       const sys = 'あなたは競合リサーチのアシスタントです。指定されたJSON配列のみを出力し、説明文は出力しません。';
       const prompt =
         '次の「Web検索結果」から、テーマ「' + state.topic + '」の競合となる実在の企業・店舗・ブランド名を、' +
-        'できるだけ多く（最大' + MAX_COMPETITORS + '件・最低でも見つかる限り複数）重複なく列挙してください。1社に絞らないこと。\n' +
+        'ちょうど' + want + '件程度（最大' + want + '件）を目標に、重複なく列挙してください。1社に絞らないこと。\n' +
+        (state.compTarget ? '調査ターゲット（業種・カテゴリ）: ' + state.compTarget + '\n' : '') +
         (area ? 'エリア: ' + area + '（このエリアの実店舗を優先し、可能な限り網羅的に）\n' : '') + '\n' +
         'Web検索結果:\n' + corpus.slice(0, 16000) + '\n\n' +
         '出力形式（検索結果に実在が読み取れる固有名詞のみ。一般語・カテゴリ名・テーマ語は除外）:\n["店舗A","株式会社B",...]';
@@ -536,11 +552,11 @@
       if (start !== -1 && end !== -1) arr = JSON.parse(text.slice(start, end + 1));
       arr = arr.filter(function (x) { return typeof x === 'string' && x.trim(); }).map(function (x) { return x.trim(); });
       // AI抽出＋ヒューリスティック抽出を統合（取りこぼし防止）
-      const merged = dedupeNames(seeds.concat(arr, listNames), MAX_COMPETITORS);
-      return merged.length ? merged : dedupeNames(seeds.concat(listNames, Research.extractCandidateNames(corpus, MAX_COMPETITORS, state.topic)), MAX_COMPETITORS);
+      const merged = dedupeNames(seeds.concat(arr, listNames), want);
+      return merged.length ? merged : dedupeNames(seeds.concat(listNames, Research.extractCandidateNames(corpus, want, state.topic)), want);
     } catch (e) {
       if (signal.aborted) throw e;
-      return dedupeNames(seeds.concat(listNames, Research.extractCandidateNames(corpus, MAX_COMPETITORS, state.topic)), MAX_COMPETITORS);
+      return dedupeNames(seeds.concat(listNames, Research.extractCandidateNames(corpus, want, state.topic)), want);
     }
   }
   function dedupeNames(arr, max) {
@@ -642,12 +658,17 @@
         'AI検索については、ユーザーがChatGPT・Gemini等のAIに尋ねそうな質問例と、AIが提示しがちな回答・推奨の傾向、AIの回答で選ばれる（引用される）ために有効な施策を分析してください。この部分は実測データではなくAIモデルの知見に基づく分析であることを必ず明記してください。'
       : '';
     // 競合・店舗が複数特定されている場合、1社に絞らず全社を対象にするよう強く明示
+    const compFocusLine = state.compFocus
+      ? '調査観点（各社について必ず網羅）: ' + state.compFocus
+      : '調査観点（各社について必ず網羅）: 価格帯・商品/サービス構成・強み/弱み・ターゲット層・立地/アクセス・集客チャネル・SNS運用・口コミ評価・予約/購入導線・差別化ポイント';
     const compExtra = (state.competitorNames && state.competitorNames.length)
       ? '\n【競合の網羅（最重要ルール）】今回のWeb調査で次の' + state.competitorNames.length + '社の競合・店舗を特定しています。' +
-        '絶対に1社だけに絞らず、原則としてこの全社を分析対象にしてください:\n' +
+        '絶対に1社だけに絞らず、この全社を同じ詳しさで個別に分析対象にしてください:\n' +
         state.competitorNames.map(function (n, i) { return (i + 1) + '. ' + n; }).join('\n') +
-        '\n各競合について、料金・サービス・強み弱み・立地・SNSなどを1社ずつ個別に言及し、必ずMarkdownの表で' + state.competitorNames.length +
-        '社を行として横比較してください（情報が乏しい社は「未確認」と明記のうえ行に含める）。1社に集中した報告は不可とします。'
+        '\n' + compFocusLine +
+        '\n各競合について、上記の観点を1社ずつ「### 競合名」の小見出しを立てて個別に詳しく報告し、さらに必ずMarkdownの表で全' + state.competitorNames.length +
+        '社を行として横比較してください（情報が乏しい社は「未確認」と明記のうえ行に含める）。' +
+        '「1社だけ詳しく、他は簡単に」は禁止。全社を同じ粒度で扱ってください。'
       : '';
     const prompt =
       '【分析テーマ】\n' + state.topic +
@@ -782,9 +803,11 @@
       '2. エグゼクティブサマリー（冒頭に必ずKPIカードを置き、結論・推奨アクションを先に述べる）\n' +
       '3. 市場環境分析（市場規模・成長率の時系列グラフ、セグメント別構成、PEST/マクロtrend）\n' +
       '4. 顧客・ターゲット分析（ペルソナ、ニーズ、カスタマージャーニー）\n' +
-      '5. 競合分析（競合比較表、ポジショニングマップ=radar、シェア構成=pie/donut。' + (state.mode === 'competitor' ? '自社と競合の項目別比較表を必ず入れる' : '主要プレイヤーの比較') +
+      '5. 競合分析（競合比較表、ポジショニングマップ=radar、シェア構成=pie/donut。' + (state.mode === 'competitor' ? '自社情報がある場合は自社と競合の項目別比較表も入れる' : '主要プレイヤーの比較') +
       (state.competitorNames && state.competitorNames.length
-        ? '。【最重要】今回特定した次の' + state.competitorNames.length + '社を、1社も欠かさず比較表の「行」として必ず全社掲載すること（料金・サービス・強み・弱み・立地・SNS等を列に）。1〜数社だけに絞るのは不可。情報が乏しい社は該当セルに「未確認」と記載して行に含める: ' +
+        ? '。【最重要】今回特定した次の' + state.competitorNames.length + '社について、まず1社ずつ「### 競合名」の小見出しを立てて全社を同じ詳しさで個別に詳述し（' +
+          (state.compFocus ? '調査観点: ' + state.compFocus + '。' : '価格帯・商品/サービス・強み/弱み・ターゲット層・立地・集客チャネル・SNS運用・口コミ・差別化ポイント等。') +
+          '）、そのうえで全' + state.competitorNames.length + '社を1社も欠かさず「行」とした比較表を必ず掲載すること。1〜数社だけに絞る・一部だけ詳しく書くのは不可。情報が乏しい社は「未確認」と明記して必ず含める: ' +
           state.competitorNames.join(' / ')
         : '') + '）\n' +
       '6. SNS・Instagramトレンド分析（人気ハッシュタグ・投稿傾向・言及数推移グラフ）\n' +
@@ -971,9 +994,24 @@
 
   /* ============ メインフロー ============ */
   async function startAnalysis() {
-    const topic = $('#topic-input').value.trim();
+    let topic = $('#topic-input').value.trim();
     const warning = $('#setup-warning');
     warning.hidden = true;
+    // 競合分析モードはフォーム項目（エリア・業種・調査内容）からテーマを補完する
+    if (state.mode === 'competitor') {
+      const cArea = ($('#comp-area').value || '').trim();
+      const cTarget = ($('#comp-target').value || '').trim();
+      const cFocus = ($('#comp-focus').value || '').trim();
+      if (!topic && (cTarget || cArea)) {
+        topic = (cArea ? cArea + 'の' : '') + (cTarget || '競合') + 'を対象に、主要な競合を調査分析する' +
+          (cFocus ? '（調査観点: ' + cFocus + '）' : '');
+      }
+      if (!topic) {
+        warning.textContent = '「調査ターゲット（業種）」または「調査エリア」を入力してください（テーマ欄への記入でも開始できます）。';
+        warning.hidden = false;
+        return;
+      }
+    }
     if (!topic) {
       warning.textContent = '分析したい内容を入力してください。';
       warning.hidden = false;
@@ -1014,6 +1052,13 @@
     if (state.mode === 'competitor') {
       const mps = $('#main-profile-select');
       if (mps && mps.value) state.mainProfileId = mps.value;
+      state.compArea = ($('#comp-area').value || '').trim();
+      state.compTarget = ($('#comp-target').value || '').trim();
+      state.compFocus = ($('#comp-focus').value || '').trim();
+      const cc = parseInt($('#comp-count').value, 10);
+      state.compCount = Math.min(Math.max(isNaN(cc) ? 5 : cc, 1), MAX_COMPETITORS);
+    } else {
+      state.compArea = ''; state.compTarget = ''; state.compFocus = ''; state.compCount = 5;
     }
     state.sourceDigest = Sources.buildDigest(LEVELS[state.level].sourceChars);
     state.sourceNames = Sources.listNames();
@@ -1036,8 +1081,9 @@
     $('#report-section').hidden = true;
     $('#btn-stop').hidden = false;
     $('#btn-new').hidden = true;
-    $('#run-topic').textContent = '【' + (state.mode === 'competitor' ? '自社と競合の分析' : '市場分析') + '】「' + topic + '」｜' +
+    $('#run-topic').textContent = '【' + (state.mode === 'competitor' ? '競合分析' : '市場分析') + '】「' + topic + '」｜' +
       LEVELS[state.level].name + '｜' + pipelineLabel +
+      (state.mode === 'competitor' ? '｜対象 ' + state.compCount + '社' : '') +
       (state.sourceNames.length ? '｜参考資料 ' + state.sourceNames.length + '件' : '');
     $('#agent-grid').innerHTML = '';
     $('#synth-slot').innerHTML = '';
@@ -1048,6 +1094,10 @@
 
     const signal = state.abort.signal;
     $('#regen-bar').hidden = true;
+    // 調査エリア: 競合分析はフォーム入力を優先、無ければ自社情報のエリア
+    const researchArea = (state.mode === 'competitor' && state.compArea)
+      ? state.compArea
+      : (loadProfile().area || '').trim();
     try {
       // 0) 自律Webリサーチ（市場・競合・SNS/口コミの傾向を自動収集）
       if (state.settings.autoResearch) {
@@ -1063,7 +1113,7 @@
             },
             {
               mode: state.mode,
-              area: (loadProfile().area || '').trim(),
+              area: researchArea,
               company: (loadProfile().name || '').trim(),
               competitors: state.competitors,
             }
@@ -1076,12 +1126,12 @@
 
           // 競合・店舗を複数特定し、それぞれを個別に深掘り調査する
           try {
-            setPhase('競合・店舗を特定して個別に深掘り調査中…', 6, 'crosshair');
-            const area = (loadProfile().area || '').trim();
-            // 個別深掘りの社数はモードで調整（市場分析は外部プロキシ負荷を抑えて8社まで、
-            // 競合分析はユーザー要望どおり最大20社）
-            const discovered = await discoverCompetitors(research.digest, area, signal);
-            const names = discovered.slice(0, state.mode === 'competitor' ? MAX_COMPETITORS : 8);
+            // 対象社数: 競合分析はユーザー指定数（1〜20）。市場分析は外部プロキシ負荷を抑えて8社まで。
+            const targetCount = state.mode === 'competitor' ? state.compCount : 8;
+            setPhase('競合・店舗を' + targetCount + '社特定して個別に深掘り調査中…', 6, 'crosshair');
+            const area = researchArea;
+            const discovered = await discoverCompetitors(research.digest, area, targetCount, signal);
+            const names = discovered.slice(0, targetCount);
             if (!signal.aborted && names.length) {
               // 特定できた全社を分析対象として先に確定（深掘りが一部失敗しても全社を横比較させる）
               state.competitorNames = names;
@@ -1223,6 +1273,10 @@
         topic: state.topic,
         mode: state.mode,
         competitors: state.competitors,
+        compArea: state.compArea,
+        compTarget: state.compTarget,
+        compCount: state.compCount,
+        compFocus: state.compFocus,
         level: state.level,
         provider: state.settings.provider,
         model: currentModel(),
@@ -1292,6 +1346,10 @@
     state.topic = entry.topic || '';
     state.mode = entry.mode || 'market';
     state.competitors = entry.competitors || '';
+    state.compArea = entry.compArea || '';
+    state.compTarget = entry.compTarget || '';
+    state.compCount = entry.compCount || 5;
+    state.compFocus = entry.compFocus || '';
     state.level = entry.level || 2;
     state.finalReport = entry.finalReport || '';
     state.sourceNames = entry.sourceNames || [];
@@ -1753,13 +1811,10 @@
     const isComp = mode === 'competitor';
     $('#competitor-fields').hidden = !isComp;
     if (isComp) {
-      $('#setup-title').textContent = '自社と競合の分析';
+      $('#setup-title').textContent = '競合分析';
       populateMainProfileSelect();
-      const list = allProfiles();
-      $('#competitor-hint').textContent = list.length
-        ? '分析の主役にする自社情報（メイン）を選ぶと、その事業に影響する競合を重点的に分析します。'
-        : '自社情報が未登録です。メニューに戻って登録するか、下のテーマ欄に自社の情報を詳しく書いてください。';
-      $('#topic-input').placeholder = '例: 渋谷エリアで競合エステサロンと比較し、差別化ポイントと集客改善策を知りたい';
+      $('#competitor-hint').textContent = '調査エリア・業種・社数・調べたい内容を指定してください。指定した数の競合を探し出し、全社を同じ詳しさで個別に調査・報告します。';
+      $('#topic-input').placeholder = '（任意）上の項目に加えて、補足したい前提や狙いがあれば記入…';
     } else {
       $('#setup-title').textContent = '分析したい内容を入力してください';
       $('#topic-input').placeholder = '分析したい市場・商品・サービス・課題などを自由に記入してください…';
@@ -1925,6 +1980,14 @@
       state.settings.autoResearch = $('#research-input').checked;
       saveSettings();
     });
+
+    // 競合分析: 調査対象数スライダーの表示連動
+    const compCountEl = $('#comp-count');
+    if (compCountEl) {
+      compCountEl.addEventListener('input', function () {
+        $('#comp-count-value').textContent = compCountEl.value;
+      });
+    }
 
     // エラーカードの「再実行」（カードクリックより先に捕捉）
     function handleRetryClick(e) {
