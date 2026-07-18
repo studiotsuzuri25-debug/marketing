@@ -1718,11 +1718,10 @@
     });
     $('#btn-logout').addEventListener('click', doLogout);
     $('#btn-google').addEventListener('click', async function () {
-      const pw = $('#auth-pw').value;
       const remember = $('#auth-remember');
       if (remember) Auth.setRemember(remember.checked);
       try {
-        await Auth.loginGoogle(pw, state.settings);
+        await Auth.loginGoogle(state.settings);
         $('#auth-pw').value = '';
         await afterAuthSuccess();
       } catch (e) {

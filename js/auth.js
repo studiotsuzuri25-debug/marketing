@@ -147,27 +147,28 @@
   }
 
   /* Googleアカウントでログイン（クラウド有効時のみ）
-     暗号化鍵は「データ保護用パスワード」から導出する（全端末で共通のものを使う） */
-  async function loginGoogle(passphrase, initialSettings) {
+     暗号化鍵はGoogleアカウント（Firebase UID）から決定的に導出する。別途パスワードは不要。
+     設定はFirestore側でオーナー限定に保護される前提。 */
+  async function loginGoogle(initialSettings) {
     if (!cloudEnabled()) throw new Error('Googleログインはクラウド同期が有効な場合のみ利用できます。');
-    if (String(passphrase || '').length < 8) {
-      throw new Error('パスワード欄に「データ保護用パスワード」（8文字以上・全端末で共通）を入力してからGoogleログインを押してください。');
-    }
     const info = await window.Cloud.loginWithGoogle();
-    const key = await deriveKey(passphrase, await saltFromId('google-uid-v1:' + info.uid), false);
-    const box = await window.Cloud.loadBlob();
-    if (box && box.data) {
-      try {
-        await decrypt(key, box.data);
-      } catch (e) {
-        await window.Cloud.logout();
-        throw new Error('データ保護用パスワードが違います。初回に設定したものと同じパスワードを入力してください。');
-      }
-    }
+    // UIDから鍵を導出（全端末で同じ鍵になり、パスワード入力なしで復号できる）
+    const key = await deriveKey('google-uid-v1:' + info.uid, await saltFromId('google-uid-v1:' + info.uid), false);
     currentId = info.email || ('google-' + info.uid.slice(0, 8));
     currentKey = key;
-    if (!box || !box.data) {
-      // 初回ログイン: 現在の設定を初期値として暗号化保存
+    const box = await window.Cloud.loadBlob();
+    let usable = false;
+    if (box && box.data) {
+      try {
+        await decrypt(key, box.data); // 新方式で復号できるか確認
+        usable = true;
+      } catch (e) {
+        // 旧「データ保護用パスワード」方式で暗号化された設定は新鍵では復号できない。
+        // アカウントは有効化し、現在のローカル設定で暗号化し直す（旧クラウド設定は引き継げない）。
+        usable = false;
+      }
+    }
+    if (!usable) {
       const data = await encrypt(key, JSON.stringify(initialSettings || {}));
       await window.Cloud.saveBlob({ v: 1, data: data });
     }
